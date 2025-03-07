@@ -1,0 +1,363 @@
+<!-- transfers.html -->
+{% extends 'dashboard_base.html' %}
+
+{% block title %}Трансфери{% endblock %}
+
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tables.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/modals.css') }}">
+    <script>
+        const userRole = "{{ session.get('role') }}";
+
+        function openModal(title, transfer = null) {
+            document.getElementById('modal-title').innerText = title;
+            const modal = document.getElementById('transferModal');
+            modal.style.display = 'block';
+
+            if (transfer) {
+                document.getElementById('id').value = transfer.id;
+                document.getElementById('product_id').value = transfer.product_id;
+                document.getElementById('from_trading_point_id').value = transfer.from_trading_point_id;
+                document.getElementById('to_trading_point_id').value = transfer.to_trading_point_id;
+                document.getElementById('quantity').value = transfer.quantity;
+                document.getElementById('transfer_date').value = transfer.transfer_date;
+            } else {
+                document.getElementById('transferForm').reset();
+                document.getElementById('id').value = '';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('.close').forEach(element => {
+                element.onclick = function () {
+                    const modal = this.closest('.modal');
+                    if (modal) {
+                        modal.style.display = 'none';
+                    }
+                }
+            });
+
+            window.onclick = function (event) {
+                const modals = document.querySelectorAll('.modal');
+                modals.forEach(modal => {
+                    if (event.target == modal) {
+                        modal.style.display = 'none';
+                    }
+                });
+            }
+
+            const deleteButtons = document.querySelectorAll('.btn-danger');
+            deleteButtons.forEach(button => {
+                button.addEventListener('click', function () {
+                    const transferId = this.getAttribute('data-id');
+                    openDeleteConfirmModal(transferId);
+                });
+            });
+        });
+
+        function saveTransfer(event) {
+            event.preventDefault();
+            const form = document.getElementById('transferForm');
+            const formData = new FormData(form);
+            const isEditing = document.getElementById('id').value !== '';
+            const url = isEditing ? "{{ url_for('dashboard.edit_transfer') }}" : "{{ url_for('dashboard.add_transfer') }}";
+
+            fetch(url, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                showFlashMessage(data.message, data.status);
+                if (data.status === 'success') {
+                    document.getElementById('transferModal').style.display = 'none';
+                    if (!isEditing) {
+                        addTableRow(data.transfer);
+                    } else {
+                        updateTableRow(data.transfer);
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Помилка:', error);
+                showFlashMessage('Сталася помилка при збереженні трансферу.', 'error');
+            });
+        }
+
+        function showFlashMessage(message, category) {
+            const flashMessages = document.getElementById('flash-messages');
+            const flashMessage = document.createElement('div');
+            flashMessage.className = `flash ${category}`;
+            flashMessage.innerText = message;
+            flashMessages.appendChild(flashMessage);
+
+            setTimeout(() => {
+                flashMessage.remove();
+            }, 5000);
+        }
+
+        function addTableRow(transfer) {
+            const tbody = document.querySelector('.table-container table tbody');
+            const tr = document.createElement('tr');
+
+            tr.innerHTML = `
+                <td>${transfer.id}</td>
+                <td>${transfer.product_name}</td>
+                <td>${transfer.from_trading_point}</td>
+                <td>${transfer.to_trading_point}</td>
+                <td>${transfer.quantity}</td>
+                <td>${transfer.transfer_date}</td>
+                <td style="display: flex; gap: 10px;">
+                    <a href="javascript:void(0);" onclick="openModal('Редагувати трансфер', {
+                        id: '${transfer.id}',
+                        product_id: '${transfer.product_id}',
+                        from_trading_point_id: '${transfer.from_trading_point_id}',
+                        to_trading_point_id: '${transfer.to_trading_point_id}',
+                        quantity: '${transfer.quantity}',
+                        transfer_date: '${transfer.transfer_date}'
+                    });" class="btn-success">Редагувати</a>
+                    ${['owner', 'admin'].includes(userRole) ?
+                    `<button type="button" class="btn-danger" data-id="${transfer.id}">Видалити</button>` : ''}
+                </td>
+            `;
+
+            if (['owner', 'admin'].includes(userRole)) {
+                const deleteButton = tr.querySelector('.btn-danger');
+                if (deleteButton) {
+                    deleteButton.addEventListener('click', function () {
+                        const transferId = this.getAttribute('data-id');
+                        openDeleteConfirmModal(transferId);
+                    });
+                }
+            }
+
+            tbody.appendChild(tr);
+        }
+
+        function updateTableRow(transfer) {
+            const rows = document.querySelectorAll('.table-container table tbody tr');
+            rows.forEach(row => {
+                const idCell = row.querySelector('td:first-child');
+                if (idCell && idCell.textContent == transfer.id) {
+                    row.innerHTML = `
+                        <td>${transfer.id}</td>
+                        <td>${transfer.product_name}</td>
+                        <td>${transfer.from_trading_point}</td>
+                        <td>${transfer.to_trading_point}</td>
+                        <td>${transfer.quantity}</td>
+                        <td>${transfer.transfer_date}</td>
+                        <td style="display: flex; gap: 10px;">
+                            <a href="javascript:void(0);" onclick="openModal('Редагувати трансфер', {
+                                id: '${transfer.id}',
+                                product_id: '${transfer.product_id}',
+                                from_trading_point_id: '${transfer.from_trading_point_id}',
+                                to_trading_point_id: '${transfer.to_trading_point_id}',
+                                quantity: '${transfer.quantity}',
+                                transfer_date: '${transfer.transfer_date}'
+                            });" class="btn-success">Редагувати</a>
+                            ${['owner', 'admin'].includes(userRole) ?
+                            `<button type="button" class="btn-danger" data-id="${transfer.id}">Видалити</button>` : ''}
+                        </td>
+                    `;
+
+                    if (['owner', 'admin'].includes(userRole)) {
+                        const deleteButton = row.querySelector('.btn-danger');
+                        if (deleteButton) {
+                            deleteButton.addEventListener('click', function () {
+                                const transferId = this.getAttribute('data-id');
+                                openDeleteConfirmModal(transferId);
+                            });
+                        }
+                    }
+                }
+            });
+        }
+
+        function openDeleteConfirmModal(transferId) {
+            const modal = document.getElementById('deleteConfirmModal');
+            modal.style.display = 'block';
+            document.getElementById('delete-transfer-id').value = transferId;
+        }
+
+        function closeDeleteConfirmModal() {
+            const modal = document.getElementById('deleteConfirmModal');
+            modal.style.display = 'none';
+            document.getElementById('delete-transfer-id').value = '';
+        }
+
+        function confirmDeleteTransfer() {
+            const transferId = document.getElementById('delete-transfer-id').value;
+            if (!transferId) {
+                showFlashMessage('Не вказано ID трансферу для видалення.', 'error');
+                return;
+            }
+
+            fetch("{{ url_for('dashboard.delete_transfer') }}", {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: new URLSearchParams({
+                    'id': transferId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                showFlashMessage(data.message, data.status);
+                if (data.status === 'success') {
+                    const rows = document.querySelectorAll('.table-container table tbody tr');
+                    rows.forEach(row => {
+                        const idCell = row.querySelector('td:first-child');
+                        if (idCell && idCell.textContent == transferId) {
+                            row.remove();
+                        }
+                    });
+                    closeDeleteConfirmModal();
+                }
+            })
+            .catch(error => {
+                console.error('Помилка:', error);
+                showFlashMessage('Сталася помилка при видаленні трансферу.', 'error');
+                closeDeleteConfirmModal();
+            });
+        }
+    </script>
+{% endblock %}
+
+{% block content %}
+<h1>Список трансферів</h1>
+
+{% if session.get('role') in ['owner', 'admin'] %}
+    <a href="javascript:void(0);" onclick="openModal('Додати трансфер');" class="button">Додати новий трансфер</a>
+{% endif %}
+
+<form method="GET" action="{{ url_for('dashboard.transfers') }}" style="margin-top: 20px;">
+    <input type="text" name="search" placeholder="Пошук трансферів" value="{{ request.args.get('search', '') }}">
+    <button type="submit">Пошук</button>
+</form>
+
+<div class="table-container">
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Товар</th>
+                <th>Від торгової точки</th>
+                <th>До торгової точки</th>
+                <th>Кількість</th>
+                <th>Дата трансферу</th>
+                {% if session.get('role') in ['owner', 'admin', 'operator'] %}
+                    <th>Дії</th>
+                {% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for tr in transfers %}
+            <tr>
+                <td>{{ tr[0] }}</td>
+                <td>{{ tr[1] }}</td>
+                <td>{{ tr[2] }}</td>
+                <td>{{ tr[3] }}</td>
+                <td>{{ tr[4] }}</td>
+                <td>{{ tr[5] }}</td>
+
+                {% if session.get('role') in ['owner', 'admin', 'operator'] %}
+                <td style="display: flex; gap: 10px;">
+                    <a href="javascript:void(0);" onclick="openModal('Редагувати трансфер', {
+                        id: '{{ tr[0] }}',
+                        product_id: '{{ tr[1] }}',
+                        from_trading_point_id: '{{ tr[2] }}',
+                        to_trading_point_id: '{{ tr[3] }}',
+                        quantity: '{{ tr[4] }}',
+                        transfer_date: '{{ tr[5] }}'
+                    });" class="btn-success">Редагувати</a>
+
+                    {% if session.get('role') in ['owner', 'admin'] %}
+                    <button type="button" class="btn-danger" data-id="{{ tr[0] }}">Видалити</button>
+                    {% endif %}
+                </td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Контейнер для флеш-повідомлень -->
+<div id="flash-messages">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="flash {{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+</div>
+
+<!-- Модальне вікно для додавання/редагування трансферу -->
+<div id="transferModal" class="modal">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2 id="modal-title">Додати трансфер</h2>
+        <form id="transferForm" class="admin-form">
+            <input type="hidden" id="id" name="id">
+            <div class="form-group">
+                <label for="product_id">Товар:</label>
+                <select id="product_id" name="product_id" required>
+                    <option value="">Виберіть товар</option>
+                    {% for prod in products %}
+                        <option value="{{ prod[0] }}">{{ prod[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="from_trading_point_id">Від торгової точки:</label>
+                <select id="from_trading_point_id" name="from_trading_point_id" required>
+                    <option value="">Виберіть торгову точку</option>
+                    {% for tp in trading_points %}
+                        <option value="{{ tp[0] }}">{{ tp[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="to_trading_point_id">До торгової точки:</label>
+                <select id="to_trading_point_id" name="to_trading_point_id" required>
+                    <option value="">Виберіть торгову точку</option>
+                    {% for tp in trading_points %}
+                        <option value="{{ tp[0] }}">{{ tp[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="quantity">Кількість:</label>
+                <input type="number" id="quantity" name="quantity" min="1" required>
+            </div>
+            <div class="form-group">
+                <label for="transfer_date">Дата трансферу:</label>
+                <input type="date" id="transfer_date" name="transfer_date" required>
+            </div>
+            <button type="button" onclick="saveTransfer(event)">Зберегти</button>
+        </form>
+    </div>
+</div>
+
+<!-- Модальне вікно для підтвердження видалення трансферу -->
+<div id="deleteConfirmModal" class="modal">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2>Підтвердження видалення</h2>
+        <p>Ви впевнені, що хочете видалити цей трансфер?</p>
+        <form id="deleteForm" class="delete-form">
+            <input type="hidden" id="delete-transfer-id" name="id">
+            <div class="button-group">
+                <button type="button" class="btn-confirm" onclick="confirmDeleteTransfer()">Так, видалити</button>
+                <button type="button" class="btn-cancel" onclick="closeDeleteConfirmModal()">Скасувати</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

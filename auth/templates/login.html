@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вхід</title>
+    <link rel="icon" href="{{ url_for('static', filename='photos/icon.png') }}" type="image/x-icon">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+<div class="background"></div>
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        <div id="flash-messages">
+            {% for category, message in messages %}
+                <div class="flash {{ category }}">{{ message }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+{% endwith %}
+<div class="container">
+    <div class="logo">
+        <img src="{{ url_for('static', filename='photos/logo.png') }}" alt="Starcourt Mall Logo">
+    </div>
+    <form class="login-form" method="POST" action="/login">
+        <h2 class="neon-text">Вхід</h2>
+        <div class="form-group">
+            <input type="text" id="login" name="login" required autocomplete="off">
+            <label for="login">Ім'я користувача</label>
+        </div>
+        <div class="form-group">
+            <input type="password" id="password" name="password" required>
+            <label for="password">Пароль</label>
+        </div>
+        <button type="submit">Увійти</button>
+        <p class="forgot-password-link"> <a href="/forgot_password">Забули пароль?</a></p>
+        <p class="register-link">Ще не зареєстровані? <a href="/register">Створити акаунт</a></p>
+    </form>
+</div>
+<script>
+</script>
+</body>
+</html>

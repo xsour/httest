@@ -1,0 +1,50 @@
+{% extends 'dashboard_base.html' %}
+
+{% block title %}Постачальники товарів{% endblock %}
+
+{% block content %}
+<h1>Постачальники товарів</h1>
+
+<form method="POST">
+    <label for="product_id">Товар:</label>
+    <select name="product_id" id="product_id">
+        <option value="">Всі товари</option>
+        {% for product in products %}
+            <option value="{{ product[0] }}">{{ product[1] }}</option>
+        {% endfor %}
+    </select>
+
+    <label for="min_quantity">Мінімальна кількість:</label>
+    <input type="number" name="min_quantity" id="min_quantity" min="1">
+
+    <label for="start_date">Дата початку:</label>
+    <input type="date" name="start_date" id="start_date">
+
+    <label for="end_date">Дата завершення:</label>
+    <input type="date" name="end_date" id="end_date">
+
+    <button type="submit">Пошук</button>
+</form>
+
+{% if suppliers %}
+    <p>Загальна кількість постачальників: {{ total_suppliers }}</p>
+    <table>
+        <thead>
+            <tr>
+                <th>Назва постачальника</th>
+                <th>Контактний телефон</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for supplier in suppliers %}
+                <tr>
+                    <td>{{ supplier[0] }}</td>
+                    <td>{{ supplier[1] }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <p>Немає даних для відображення.</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,345 @@
+{% extends 'dashboard_base.html' %}
+
+{% block title %}Зали{% endblock %}
+
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tables.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/modals.css') }}">
+    <script>
+        // Передача ролі користувача до JavaScript
+        const userRole = "{{ session.get('role') }}";
+        // Зберігаємо список торгових точок для вибору
+        const tradingPoints = {{ trading_points | tojson }};
+    </script>
+    <script>
+        // Функція для відкриття модального вікна
+        function openModal(title, hall = null) {
+            document.getElementById('modal-title').innerText = title;
+            const modal = document.getElementById('hallModal');
+            modal.style.display = 'block';
+
+            const tradingPointSelect = document.getElementById('trading_point_id');
+            // Очищуємо попередні опції
+            tradingPointSelect.innerHTML = '';
+            tradingPoints.forEach(point => {
+                const option = document.createElement('option');
+                option.value = point.id;
+                option.text = point.name;
+                tradingPointSelect.add(option);
+            });
+
+            if (hall) {
+                document.getElementById('id').value = hall.id;
+                document.getElementById('name').value = hall.name;
+                document.getElementById('trading_point_id').value = hall.trading_point_id;
+            } else {
+                document.getElementById('hallForm').reset();
+                document.getElementById('id').value = ''; // Очистити поле ID
+            }
+        }
+
+        // Закриття модальних вікон при натисканні на кнопку "Закрити" або за межами модального вікна
+        document.addEventListener('DOMContentLoaded', function () {
+            // Закриття модального вікна для додавання/редагування
+            document.querySelectorAll('.close').forEach(element => {
+                element.onclick = function () {
+                    const modal = this.closest('.modal');
+                    if (modal) {
+                        modal.style.display = 'none';
+                    }
+                }
+            });
+
+            window.onclick = function (event) {
+                const modals = document.querySelectorAll('.modal');
+                modals.forEach(modal => {
+                    if (event.target == modal) {
+                        modal.style.display = 'none';
+                    }
+                });
+            }
+
+            // Додати слухачі подій для кнопок видалення
+            const deleteButtons = document.querySelectorAll('.btn-danger');
+            deleteButtons.forEach(button => {
+                button.addEventListener('click', function () {
+                    const hallId = this.getAttribute('data-id');
+                    openDeleteConfirmModal(hallId);
+                });
+            });
+        });
+
+        // Функція для збереження зали
+        function saveHall(event) {
+            event.preventDefault();
+            const form = document.getElementById('hallForm');
+            const formData = new FormData(form);
+            const isEditing = document.getElementById('id').value !== '';
+            const url = isEditing ? "{{ url_for('dashboard.edit_hall') }}" : "{{ url_for('dashboard.add_hall') }}";
+
+            fetch(url, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                showFlashMessage(data.message, data.status);
+                if (data.status === 'success') {
+                    document.getElementById('hallModal').style.display = 'none';
+                    if (!isEditing) {
+                        addTableRow(data.hall);
+                    } else {
+                        updateTableRow(data.hall);
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Помилка:', error);
+                showFlashMessage('Сталася помилка при збереженні зали.', 'error');
+            });
+        }
+
+        // Функція для відображення флеш-повідомлень
+        function showFlashMessage(message, category) {
+            const flashMessages = document.getElementById('flash-messages');
+            const flashMessage = document.createElement('div');
+            flashMessage.className = `flash ${category}`;
+            flashMessage.innerText = message;
+            flashMessages.appendChild(flashMessage);
+
+            // Автоматичне видалення повідомлення через 5 секунд
+            setTimeout(() => {
+                flashMessage.remove();
+            }, 5000);
+        }
+
+        // Функція для додавання нового рядка до таблиці
+        function addTableRow(hall) {
+            const tbody = document.querySelector('.table-container table tbody');
+            const tr = document.createElement('tr');
+
+            tr.innerHTML = `
+                <td>${hall.id}</td>
+                <td>${hall.name}</td>
+                <td>${hall.trading_point_name}</td>
+                <td style="display: flex; gap: 10px;">
+                    <a href="javascript:void(0);" onclick="openModal('Редагувати залу', {
+                        id: '${hall.id}',
+                        name: '${hall.name}',
+                        trading_point_id: '${hall.trading_point_id}'
+                    });" class="btn-success">Редагувати</a>
+                    ${['owner', 'admin'].includes(userRole) ? `
+                    <button type="button" class="btn-danger" data-id="${hall.id}">Видалити</button>
+                    ` : ''}
+                </td>
+            `;
+
+            // Додати слухача подій для кнопки видалення
+            if (['owner', 'admin'].includes(userRole)) {
+                const deleteButton = tr.querySelector('.btn-danger');
+                if (deleteButton) {
+                    deleteButton.addEventListener('click', function () {
+                        const hallId = this.getAttribute('data-id');
+                        openDeleteConfirmModal(hallId);
+                    });
+                }
+            }
+
+            tbody.appendChild(tr);
+        }
+
+        // Функція для оновлення існуючого рядка таблиці
+        function updateTableRow(hall) {
+            const rows = document.querySelectorAll('.table-container table tbody tr');
+            rows.forEach(row => {
+                const idCell = row.querySelector('td:first-child');
+                if (idCell && idCell.textContent == hall.id) {
+                    row.innerHTML = `
+                        <td>${hall.id}</td>
+                        <td>${hall.name}</td>
+                        <td>${hall.trading_point_name}</td>
+                        <td style="display: flex; gap: 10px;">
+                            <a href="javascript:void(0);" onclick="openModal('Редагувати залу', {
+                                id: '${hall.id}',
+                                name: '${hall.name}',
+                                trading_point_id: '${hall.trading_point_id}'
+                            });" class="btn-success">Редагувати</a>
+                            ${['owner', 'admin'].includes(userRole) ? `
+                            <button type="button" class="btn-danger" data-id="${hall.id}">Видалити</button>
+                            ` : ''}
+                        </td>
+                    `;
+
+                    // Додати слухача подій для кнопки видалення
+                    if (['owner', 'admin'].includes(userRole)) {
+                        const deleteButton = row.querySelector('.btn-danger');
+                        if (deleteButton) {
+                            deleteButton.addEventListener('click', function () {
+                                const hallId = this.getAttribute('data-id');
+                                openDeleteConfirmModal(hallId);
+                            });
+                        }
+                    }
+                }
+            });
+        }
+
+        // Функція для відкриття модального вікна підтвердження видалення
+        function openDeleteConfirmModal(hallId) {
+            const modal = document.getElementById('deleteConfirmModal');
+            modal.style.display = 'block';
+            document.getElementById('delete-hall-id').value = hallId;
+        }
+
+        // Функція для закриття модального вікна підтвердження видалення
+        function closeDeleteConfirmModal() {
+            const modal = document.getElementById('deleteConfirmModal');
+            modal.style.display = 'none';
+            document.getElementById('delete-hall-id').value = '';
+        }
+
+        // Функція для підтвердження видалення зали через AJAX
+        function confirmDeleteHall() {
+            const hallId = document.getElementById('delete-hall-id').value;
+            if (!hallId) {
+                showFlashMessage('Не вказано ID зали для видалення.', 'error');
+                return;
+            }
+
+            fetch("{{ url_for('dashboard.delete_hall') }}", {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: new URLSearchParams({
+                    'id': hallId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                showFlashMessage(data.message, data.status);
+                if (data.status === 'success') {
+                    // Видалення рядка таблиці
+                    const rows = document.querySelectorAll('.table-container table tbody tr');
+                    rows.forEach(row => {
+                        const idCell = row.querySelector('td:first-child');
+                        if (idCell && idCell.textContent == hallId) {
+                            row.remove();
+                        }
+                    });
+                    closeDeleteConfirmModal();
+                }
+            })
+            .catch(error => {
+                console.error('Помилка:', error);
+                showFlashMessage('Сталася помилка при видаленні зали.', 'error');
+                closeDeleteConfirmModal();
+            });
+        }
+    </script>
+{% endblock %}
+
+{% block content %}
+<h1>Список зал</h1>
+
+{% if session.get('role') in ['owner', 'admin'] %}
+    <a href="javascript:void(0);" onclick="openModal('Додати залу');" class="button">Додати нову залу</a>
+{% endif %}
+
+<form method="GET" action="{{ url_for('dashboard.halls') }}" style="margin-top: 20px;">
+    <input type="text" name="search" placeholder="Пошук зал" value="{{ request.args.get('search', '') }}">
+    <button type="submit">Пошук</button>
+</form>
+
+<div class="table-container">
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Назва</th>
+                <th>Торгова Точка</th>
+                {% if session.get('role') in ['owner', 'admin', 'operator'] %}
+                    <th>Дії</th>
+                {% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for hall in halls %}
+            <tr>
+                <td>{{ hall.id }}</td>
+                <td>{{ hall.name }}</td>
+                <td>{{ hall.trading_point_name }}</td>
+
+                {% if session.get('role') in ['owner', 'admin', 'operator'] %}
+                <td style="display: flex; gap: 10px;">
+                    <a href="javascript:void(0);" onclick="openModal('Редагувати залу', {
+                        id: '{{ hall.id }}',
+                        name: '{{ hall.name }}',
+                        trading_point_id: '{{ hall.trading_point_id }}'
+                    });" class="btn-success">Редагувати</a>
+
+                    {% if session.get('role') in ['owner', 'admin'] %}
+                    <button type="button" class="btn-danger" data-id="{{ hall.id }}">Видалити</button>
+                    {% endif %}
+                </td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Контейнер для флеш-повідомлень -->
+<div id="flash-messages">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="flash {{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+</div>
+
+
+<!-- Модальне вікно для додавання/редагування зали -->
+<div id="hallModal" class="modal">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2 id="modal-title">Додати залу</h2>
+        <form id="hallForm" class="admin-form">
+            <input type="hidden" id="id" name="id">
+            <div class="form-group">
+                <label for="name">Назва:</label>
+                <input type="text" id="name" name="name" required>
+            </div>
+            <div class="form-group">
+                <label for="trading_point_id">Торгова Точка:</label>
+                <select id="trading_point_id" name="trading_point_id" required>
+                    <!-- Опції будуть додані через JavaScript -->
+                </select>
+            </div>
+            <button type="button" onclick="saveHall(event)">Зберегти</button>
+        </form>
+    </div>
+</div>
+
+<!-- Модальне вікно для підтвердження видалення зали -->
+<div id="deleteConfirmModal" class="modal">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2>Підтвердження видалення</h2>
+        <p>Ви впевнені, що хочете видалити цю залу?</p>
+        <form id="deleteForm" class="delete-form">
+            <input type="hidden" id="delete-hall-id" name="id">
+            <div class="button-group">
+                <button type="button" class="btn-confirm" onclick="confirmDeleteHall()">Так, видалити</button>
+                <button type="button" class="btn-cancel" onclick="closeDeleteConfirmModal()">Скасувати</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,346 @@
+<!-- stocks.html -->
+{% extends 'dashboard_base.html' %}
+
+{% block title %}Запаси{% endblock %}
+
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tables.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/modals.css') }}">
+    <script>
+        const userRole = "{{ session.get('role') }}";
+
+        function openModal(title, stock = null) {
+            document.getElementById('modal-title').innerText = title;
+            const modal = document.getElementById('stockModal');
+            modal.style.display = 'block';
+
+            if (stock) {
+                document.getElementById('trading_point_id').value = stock.trading_point_id;
+                document.getElementById('product_id').value = stock.product_id;
+                document.getElementById('quantity').value = stock.quantity;
+            } else {
+                document.getElementById('stockForm').reset();
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('.close').forEach(element => {
+                element.onclick = function () {
+                    const modal = this.closest('.modal');
+                    if (modal) {
+                        modal.style.display = 'none';
+                    }
+                }
+            });
+
+            window.onclick = function (event) {
+                const modals = document.querySelectorAll('.modal');
+                modals.forEach(modal => {
+                    if (event.target == modal) {
+                        modal.style.display = 'none';
+                    }
+                });
+            }
+
+            const deleteButtons = document.querySelectorAll('.btn-danger');
+            deleteButtons.forEach(button => {
+                button.addEventListener('click', function () {
+                    const tradingPointId = this.getAttribute('data-trading-point-id');
+                    const productId = this.getAttribute('data-product-id');
+                    openDeleteConfirmModal(tradingPointId, productId);
+                });
+            });
+        });
+
+        function saveStock(event) {
+            event.preventDefault();
+            const form = document.getElementById('stockForm');
+            const formData = new FormData(form);
+            const isEditing = document.getElementById('trading_point_id').value !== '' && document.getElementById('product_id').value !== '';
+            const url = isEditing ? "{{ url_for('dashboard.edit_stock') }}" : "{{ url_for('dashboard.add_stock') }}";
+
+            fetch(url, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                showFlashMessage(data.message, data.status);
+                if (data.status === 'success') {
+                    document.getElementById('stockModal').style.display = 'none';
+                    if (!isEditing) {
+                        addTableRow(data.stock);
+                    } else {
+                        updateTableRow(data.stock);
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Помилка:', error);
+                showFlashMessage('Сталася помилка при збереженні запису у запасах.', 'error');
+            });
+        }
+
+        function showFlashMessage(message, category) {
+            const flashMessages = document.getElementById('flash-messages');
+            const flashMessage = document.createElement('div');
+            flashMessage.className = `flash ${category}`;
+            flashMessage.innerText = message;
+            flashMessages.appendChild(flashMessage);
+
+            setTimeout(() => {
+                flashMessage.remove();
+            }, 5000);
+        }
+
+        function addTableRow(stock) {
+            const tbody = document.querySelector('.table-container table tbody');
+            const tr = document.createElement('tr');
+
+            tr.innerHTML = `
+                <td>${stock.trading_point_id}</td>
+                <td>${stock.trading_point_name}</td>
+                <td>${stock.product_id}</td>
+                <td>${stock.product_name}</td>
+                <td>${stock.quantity}</td>
+                <td style="display: flex; gap: 10px;">
+                    <a href="javascript:void(0);" onclick="openModal('Редагувати запас', {
+                        trading_point_id: '${stock.trading_point_id}',
+                        product_id: '${stock.product_id}',
+                        quantity: '${stock.quantity}'
+                    });" class="btn-success">Редагувати</a>
+                    ${['owner', 'admin'].includes(userRole) ?
+                    `<button type="button" class="btn-danger" data-trading-point-id="${stock.trading_point_id}" data-product-id="${stock.product_id}">Видалити</button>` : ''}
+                </td>
+            `;
+
+            if (['owner', 'admin'].includes(userRole)) {
+                const deleteButton = tr.querySelector('.btn-danger');
+                if (deleteButton) {
+                    deleteButton.addEventListener('click', function () {
+                        const tradingPointId = this.getAttribute('data-trading-point-id');
+                        const productId = this.getAttribute('data-product-id');
+                        openDeleteConfirmModal(tradingPointId, productId);
+                    });
+                }
+            }
+
+            tbody.appendChild(tr);
+        }
+
+        function updateTableRow(stock) {
+            const rows = document.querySelectorAll('.table-container table tbody tr');
+            rows.forEach(row => {
+                const tpIdCell = row.querySelector('td:first-child');
+                const prodIdCell = row.querySelector('td:nth-child(3)');
+                if (tpIdCell && prodIdCell &&
+                    tpIdCell.textContent == stock.trading_point_id &&
+                    prodIdCell.textContent == stock.product_id) {
+                    row.innerHTML = `
+                        <td>${stock.trading_point_id}</td>
+                        <td>${stock.trading_point_name}</td>
+                        <td>${stock.product_id}</td>
+                        <td>${stock.product_name}</td>
+                        <td>${stock.quantity}</td>
+                        <td style="display: flex; gap: 10px;">
+                            <a href="javascript:void(0);" onclick="openModal('Редагувати запас', {
+                                trading_point_id: '${stock.trading_point_id}',
+                                product_id: '${stock.product_id}',
+                                quantity: '${stock.quantity}'
+                            });" class="btn-success">Редагувати</a>
+                            ${['owner', 'admin'].includes(userRole) ?
+                            `<button type="button" class="btn-danger" data-trading-point-id="${stock.trading_point_id}" data-product-id="${stock.product_id}">Видалити</button>` : ''}
+                        </td>
+                    `;
+
+                    if (['owner', 'admin'].includes(userRole)) {
+                        const deleteButton = row.querySelector('.btn-danger');
+                        if (deleteButton) {
+                            deleteButton.addEventListener('click', function () {
+                                const tradingPointId = this.getAttribute('data-trading-point-id');
+                                const productId = this.getAttribute('data-product-id');
+                                openDeleteConfirmModal(tradingPointId, productId);
+                            });
+                        }
+                    }
+                }
+            });
+        }
+
+        function openDeleteConfirmModal(tradingPointId, productId) {
+            const modal = document.getElementById('deleteConfirmModal');
+            modal.style.display = 'block';
+            document.getElementById('delete-trading-point-id').value = tradingPointId;
+            document.getElementById('delete-product-id').value = productId;
+        }
+
+        function closeDeleteConfirmModal() {
+            const modal = document.getElementById('deleteConfirmModal');
+            modal.style.display = 'none';
+            document.getElementById('delete-trading-point-id').value = '';
+            document.getElementById('delete-product-id').value = '';
+        }
+
+        function confirmDeleteStock() {
+            const tradingPointId = document.getElementById('delete-trading-point-id').value;
+            const productId = document.getElementById('delete-product-id').value;
+            if (!tradingPointId || !productId) {
+                showFlashMessage('Не вказано ID торгової точки або товару для видалення.', 'error');
+                return;
+            }
+
+            fetch("{{ url_for('dashboard.delete_stock') }}", {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: new URLSearchParams({
+                    'trading_point_id': tradingPointId,
+                    'product_id': productId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                showFlashMessage(data.message, data.status);
+                if (data.status === 'success') {
+                    const rows = document.querySelectorAll('.table-container table tbody tr');
+                    rows.forEach(row => {
+                        const tpIdCell = row.querySelector('td:first-child');
+                        const prodIdCell = row.querySelector('td:nth-child(3)');
+                        if (tpIdCell && prodIdCell &&
+                            tpIdCell.textContent == tradingPointId &&
+                            prodIdCell.textContent == productId) {
+                            row.remove();
+                        }
+                    });
+                    closeDeleteConfirmModal();
+                }
+            })
+            .catch(error => {
+                console.error('Помилка:', error);
+                showFlashMessage('Сталася помилка при видаленні запису у запасах.', 'error');
+                closeDeleteConfirmModal();
+            });
+        }
+    </script>
+{% endblock %}
+
+{% block content %}
+<h1>Список запасів</h1>
+
+{% if session.get('role') in ['owner', 'admin'] %}
+    <a href="javascript:void(0);" onclick="openModal('Додати запас');" class="button">Додати новий запис у запасах</a>
+{% endif %}
+
+<form method="GET" action="{{ url_for('dashboard.stocks') }}" style="margin-top: 20px;">
+    <input type="text" name="search" placeholder="Пошук запасів" value="{{ request.args.get('search', '') }}">
+    <button type="submit">Пошук</button>
+</form>
+
+<div class="table-container">
+    <table>
+        <thead>
+            <tr>
+                <th>ID Торгової точки</th>
+                <th>Торгова точка</th>
+                <th>ID Товару</th>
+                <th>Товар</th>
+                <th>Кількість</th>
+                {% if session.get('role') in ['owner', 'admin', 'operator'] %}
+                    <th>Дії</th>
+                {% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for st in stocks %}
+            <tr>
+                <td>{{ st[0] }}</td>
+                <td>{{ st[1] }}</td>
+                <td>{{ st[2] }}</td>
+                <td>{{ st[3] }}</td>
+                <td>{{ st[4] }}</td>
+
+                {% if session.get('role') in ['owner', 'admin', 'operator'] %}
+                <td style="display: flex; gap: 10px;">
+                    <a href="javascript:void(0);" onclick="openModal('Редагувати запас', {
+                        trading_point_id: '{{ st[0] }}',
+                        product_id: '{{ st[2] }}',
+                        quantity: '{{ st[4] }}'
+                    });" class="btn-success">Редагувати</a>
+
+                    {% if session.get('role') in ['owner', 'admin'] %}
+                    <button type="button" class="btn-danger" data-trading-point-id="{{ st[0] }}" data-product-id="{{ st[2] }}">Видалити</button>
+                    {% endif %}
+                </td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Контейнер для флеш-повідомлень -->
+<div id="flash-messages">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="flash {{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+</div>
+
+<!-- Модальне вікно для додавання/редагування запису у запасах -->
+<div id="stockModal" class="modal">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2 id="modal-title">Додати запас</h2>
+        <form id="stockForm" class="admin-form">
+            <div class="form-group">
+                <label for="trading_point_id">Торгова точка:</label>
+                <select id="trading_point_id" name="trading_point_id" required>
+                    <option value="">Виберіть торгову точку</option>
+                    {% for tp in trading_points %}
+                        <option value="{{ tp[0] }}">{{ tp[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="product_id">Товар:</label>
+                <select id="product_id" name="product_id" required>
+                    <option value="">Виберіть товар</option>
+                    {% for prod in products %}
+                        <option value="{{ prod[0] }}">{{ prod[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="quantity">Кількість:</label>
+                <input type="number" id="quantity" name="quantity" min="0" required>
+            </div>
+            <button type="button" onclick="saveStock(event)">Зберегти</button>
+        </form>
+    </div>
+</div>
+
+<!-- Модальне вікно для підтвердження видалення запису у запасах -->
+<div id="deleteConfirmModal" class="modal">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2>Підтвердження видалення</h2>
+        <p>Ви впевнені, що хочете видалити цей запис у запасах?</p>
+        <form id="deleteForm" class="delete-form">
+            <input type="hidden" id="delete-trading-point-id" name="trading_point_id">
+            <input type="hidden" id="delete-product-id" name="product_id">
+            <div class="button-group">
+                <button type="button" class="btn-confirm" onclick="confirmDeleteStock()">Так, видалити</button>
+                <button type="button" class="btn-cancel" onclick="closeDeleteConfirmModal()">Скасувати</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,368 @@
+<!-- supplier_products.html -->
+{% extends 'dashboard_base.html' %}
+
+{% block title %}Товари від Постачальників{% endblock %}
+
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tables.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/modals.css') }}">
+    <script>
+        // Передача ролі користувача до JavaScript
+        const userRole = "{{ session.get('role') }}";
+
+        // Функція для відкриття модального вікна
+        function openModal(title, supplierProduct = null) {
+            document.getElementById('modal-title').innerText = title;
+            const modal = document.getElementById('supplierProductModal');
+            modal.style.display = 'block';
+
+            if (supplierProduct) {
+                document.getElementById('supplier_id').value = supplierProduct.supplier_id;
+                document.getElementById('product_id').value = supplierProduct.product_id;
+                document.getElementById('purchase_price').value = supplierProduct.purchase_price;
+
+                // Якщо редагування, вимикаємо вибір постачальника та товару
+                if (title === 'Редагувати товар від постачальника') {
+                    document.getElementById('supplier_id').disabled = true;
+                    document.getElementById('product_id').disabled = true;
+                } else {
+                    document.getElementById('supplier_id').disabled = false;
+                    document.getElementById('product_id').disabled = false;
+                }
+            } else {
+                document.getElementById('supplierProductForm').reset();
+                document.getElementById('supplier_id').disabled = false;
+                document.getElementById('product_id').disabled = false;
+            }
+        }
+
+        // Закриття модальних вікон
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('.close').forEach(element => {
+                element.onclick = function () {
+                    const modal = this.closest('.modal');
+                    if (modal) {
+                        modal.style.display = 'none';
+                    }
+                }
+            });
+
+            window.onclick = function (event) {
+                const modals = document.querySelectorAll('.modal');
+                modals.forEach(modal => {
+                    if (event.target == modal) {
+                        modal.style.display = 'none';
+                    }
+                });
+            }
+
+            // Слухачі для кнопок видалення
+            const deleteButtons = document.querySelectorAll('.btn-danger');
+            deleteButtons.forEach(button => {
+                button.addEventListener('click', function () {
+                    const supplierId = this.getAttribute('data-supplier-id');
+                    const productId = this.getAttribute('data-product-id');
+                    openDeleteConfirmModal(supplierId, productId);
+                });
+            });
+        });
+
+        // Збереження товару від постачальника через AJAX
+        function saveSupplierProduct(event) {
+            event.preventDefault();
+            const form = document.getElementById('supplierProductForm');
+            const formData = new FormData(form);
+            const isEditing = !form.querySelector('button').innerText.includes('Додати');
+            const url = isEditing ? "{{ url_for('dashboard.edit_supplier_product') }}" : "{{ url_for('dashboard.add_supplier_product') }}";
+
+            fetch(url, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                showFlashMessage(data.message, data.status);
+                if (data.status === 'success') {
+                    document.getElementById('supplierProductModal').style.display = 'none';
+                    if (!isEditing) {
+                        addTableRow(data.supplier_product);
+                    } else {
+                        updateTableRow(data.supplier_product);
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Помилка:', error);
+                showFlashMessage('Сталася помилка при збереженні товару від постачальника.', 'error');
+            });
+        }
+
+        // Відображення флеш-повідомлень
+        function showFlashMessage(message, category) {
+            const flashMessages = document.getElementById('flash-messages');
+            const flashMessage = document.createElement('div');
+            flashMessage.className = `flash ${category}`;
+            flashMessage.innerText = message;
+            flashMessages.appendChild(flashMessage);
+
+            setTimeout(() => {
+                flashMessage.remove();
+            }, 5000);
+        }
+
+        // Додавання нового рядка до таблиці
+        function addTableRow(supplierProduct) {
+            const tbody = document.querySelector('.table-container table tbody');
+            const tr = document.createElement('tr');
+
+            tr.innerHTML = `
+                <td>${supplierProduct.supplier_id}</td>
+                <td>${supplierProduct.supplier_name}</td>
+                <td>${supplierProduct.product_id}</td>
+                <td>${supplierProduct.product_name}</td>
+                <td>${supplierProduct.purchase_price.toFixed(2)}</td>
+                <td style="display: flex; gap: 10px;">
+                    <a href="javascript:void(0);" onclick="openModal('Редагувати товар від постачальника', {
+                        supplier_id: '${supplierProduct.supplier_id}',
+                        product_id: '${supplierProduct.product_id}',
+                        purchase_price: '${supplierProduct.purchase_price}'
+                    });" class="btn-success">Редагувати</a>
+                    ${['owner', 'admin'].includes(userRole) ?
+                    `<button type="button" class="btn-danger" data-supplier-id="${supplierProduct.supplier_id}" data-product-id="${supplierProduct.product_id}">Видалити</button>` : ''}
+                </td>
+            `;
+
+            if (['owner', 'admin'].includes(userRole)) {
+                const deleteButton = tr.querySelector('.btn-danger');
+                if (deleteButton) {
+                    deleteButton.addEventListener('click', function () {
+                        const supplierId = this.getAttribute('data-supplier-id');
+                        const productId = this.getAttribute('data-product-id');
+                        openDeleteConfirmModal(supplierId, productId);
+                    });
+                }
+            }
+
+            tbody.appendChild(tr);
+        }
+
+        // Оновлення існуючого рядка таблиці
+        function updateTableRow(supplierProduct) {
+            const rows = document.querySelectorAll('.table-container table tbody tr');
+            rows.forEach(row => {
+                const supIdCell = row.querySelector('td:first-child');
+                const prodIdCell = row.querySelector('td:nth-child(3)');
+                if (supIdCell && prodIdCell &&
+                    supIdCell.textContent == supplierProduct.supplier_id &&
+                    prodIdCell.textContent == supplierProduct.product_id) {
+                    row.innerHTML = `
+                        <td>${supplierProduct.supplier_id}</td>
+                        <td>${supplierProduct.supplier_name}</td>
+                        <td>${supplierProduct.product_id}</td>
+                        <td>${supplierProduct.product_name}</td>
+                        <td>${supplierProduct.purchase_price.toFixed(2)}</td>
+                        <td style="display: flex; gap: 10px;">
+                            <a href="javascript:void(0);" onclick="openModal('Редагувати товар від постачальника', {
+                                supplier_id: '${supplierProduct.supplier_id}',
+                                product_id: '${supplierProduct.product_id}',
+                                purchase_price: '${supplierProduct.purchase_price}'
+                            });" class="btn-success">Редагувати</a>
+                            ${['owner', 'admin'].includes(userRole) ?
+                            `<button type="button" class="btn-danger" data-supplier-id="${supplierProduct.supplier_id}" data-product-id="${supplierProduct.product_id}">Видалити</button>` : ''}
+                        </td>
+                    `;
+
+                    if (['owner', 'admin'].includes(userRole)) {
+                        const deleteButton = row.querySelector('.btn-danger');
+                        if (deleteButton) {
+                            deleteButton.addEventListener('click', function () {
+                                const supplierId = this.getAttribute('data-supplier-id');
+                                const productId = this.getAttribute('data-product-id');
+                                openDeleteConfirmModal(supplierId, productId);
+                            });
+                        }
+                    }
+                }
+            });
+        }
+
+        // Відкриття модального вікна підтвердження видалення
+        function openDeleteConfirmModal(supplierId, productId) {
+            const modal = document.getElementById('deleteConfirmModal');
+            modal.style.display = 'block';
+            document.getElementById('delete-supplier-id').value = supplierId;
+            document.getElementById('delete-product-id').value = productId;
+        }
+
+        // Закриття модального вікна підтвердження видалення
+        function closeDeleteConfirmModal() {
+            const modal = document.getElementById('deleteConfirmModal');
+            modal.style.display = 'none';
+            document.getElementById('delete-supplier-id').value = '';
+            document.getElementById('delete-product-id').value = '';
+        }
+
+        // Підтвердження видалення товару від постачальника через AJAX
+        function confirmDeleteSupplierProduct() {
+            const supplierId = document.getElementById('delete-supplier-id').value;
+            const productId = document.getElementById('delete-product-id').value;
+            if (!supplierId || !productId) {
+                showFlashMessage('Не вказано ID постачальника або товару для видалення.', 'error');
+                return;
+            }
+
+            fetch("{{ url_for('dashboard.delete_supplier_product') }}", {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: new URLSearchParams({
+                    'supplier_id': supplierId,
+                    'product_id': productId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                showFlashMessage(data.message, data.status);
+                if (data.status === 'success') {
+                    const rows = document.querySelectorAll('.table-container table tbody tr');
+                    rows.forEach(row => {
+                        const supIdCell = row.querySelector('td:first-child');
+                        const prodIdCell = row.querySelector('td:nth-child(3)');
+                        if (supIdCell && prodIdCell &&
+                            supIdCell.textContent == supplierId &&
+                            prodIdCell.textContent == productId) {
+                            row.remove();
+                        }
+                    });
+                    closeDeleteConfirmModal();
+                }
+            })
+            .catch(error => {
+                console.error('Помилка:', error);
+                showFlashMessage('Сталася помилка при видаленні товару від постачальника.', 'error');
+                closeDeleteConfirmModal();
+            });
+        }
+    </script>
+{% endblock %}
+
+{% block content %}
+<h1>Список товарів від постачальників</h1>
+
+{% if session.get('role') in ['owner', 'admin'] %}
+    <a href="javascript:void(0);" onclick="openModal('Додати товар від постачальника');" class="button">Додати новий товар від постачальника</a>
+{% endif %}
+
+<form method="GET" action="{{ url_for('dashboard.supplier_products') }}" style="margin-top: 20px;">
+    <input type="text" name="search" placeholder="Пошук товарів від постачальників" value="{{ request.args.get('search', '') }}">
+    <button type="submit">Пошук</button>
+</form>
+
+<div class="table-container">
+    <table>
+        <thead>
+            <tr>
+                <th>ID Постачальника</th>
+                <th>Постачальник</th>
+                <th>ID Товару</th>
+                <th>Товар</th>
+                <th>Ціна закупівлі (грн)</th>
+                {% if session.get('role') in ['owner', 'admin', 'operator'] %}
+                    <th>Дії</th>
+                {% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for sp in supplier_products %}
+            <tr>
+                <td>{{ sp[0] }}</td>
+                <td>{{ sp[1] }}</td>
+                <td>{{ sp[2] }}</td>
+                <td>{{ sp[3] }}</td>
+                <td>{{ '%.2f'|format(sp[4]) }}</td>
+
+                {% if session.get('role') in ['owner', 'admin', 'operator'] %}
+                <td style="display: flex; gap: 10px;">
+                    <a href="javascript:void(0);" onclick="openModal('Редагувати товар від постачальника', {
+                        supplier_id: '{{ sp[0] }}',
+                        product_id: '{{ sp[2] }}',
+                        purchase_price: '{{ sp[4] }}'
+                    });" class="btn-success">Редагувати</a>
+
+                    {% if session.get('role') in ['owner', 'admin'] %}
+                    <button type="button" class="btn-danger" data-supplier-id="{{ sp[0] }}" data-product-id="{{ sp[2] }}">Видалити</button>
+                    {% endif %}
+                </td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Контейнер для флеш-повідомлень -->
+<div id="flash-messages">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="flash {{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+</div>
+
+<!-- Модальне вікно для додавання/редагування товару від постачальника -->
+<div id="supplierProductModal" class="modal">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2 id="modal-title">Додати товар від постачальника</h2>
+        <form id="supplierProductForm" class="admin-form">
+            <div class="form-group">
+                <label for="supplier_id">Постачальник:</label>
+                <select id="supplier_id" name="supplier_id" required>
+                    <option value="">Виберіть постачальника</option>
+                    {% for sup in suppliers %}
+                        <option value="{{ sup[0] }}">{{ sup[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="product_id">Товар:</label>
+                <select id="product_id" name="product_id" required>
+                    <option value="">Виберіть товар</option>
+                    {% for prod in products %}
+                        <option value="{{ prod[0] }}">{{ prod[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="purchase_price">Ціна закупівлі (грн):</label>
+                <input type="number" id="purchase_price" name="purchase_price" step="0.01" required>
+            </div>
+            <button type="button" onclick="saveSupplierProduct(event)">Зберегти</button>
+        </form>
+    </div>
+</div>
+
+<!-- Модальне вікно для підтвердження видалення товару від постачальника -->
+<div id="deleteConfirmModal" class="modal">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2>Підтвердження видалення</h2>
+        <p>Ви впевнені, що хочете видалити цей товар від постачальника?</p>
+        <form id="deleteForm" class="delete-form">
+            <input type="hidden" id="delete-supplier-id" name="supplier_id">
+            <input type="hidden" id="delete-product-id" name="product_id">
+            <div class="button-group">
+                <button type="button" class="btn-confirm" onclick="confirmDeleteSupplierProduct()">Так, видалити</button>
+                <button type="button" class="btn-cancel" onclick="closeDeleteConfirmModal()">Скасувати</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

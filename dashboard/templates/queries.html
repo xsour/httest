@@ -1,0 +1,75 @@
+{% extends 'dashboard_base.html' %}
+
+{% block title %}Запити{% endblock %}
+
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tables.css') }}">
+{% endblock %}
+
+{% block content %}
+<h1>Запити</h1>
+
+<div class="table-container">
+    <table>
+        <thead>
+            <tr>
+                <th>№</th>
+                <th>Назва запиту</th>
+                <th>Дія</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>1</td>
+                <td>Найбільш активні покупці</td>
+                <td><a href="{{ url_for('dashboard.query_active_customers') }}" class="btn-success">Перейти</a></td>
+            </tr>
+            <tr>
+                <td>2</td>
+                <td>Обсяг і ціни на товар</td>
+                <td><a href="{{ url_for('dashboard.query_product_volume_prices') }}" class="btn-success">Перейти</a></td>
+            </tr>
+            <tr>
+                <td>3</td>
+                <td>Поставки товарів від постачальників</td>
+                <td><a href="{{ url_for('dashboard.query_supplier_deliveries') }}" class="btn-success">Перейти</a></td>
+            </tr>
+            <tr>
+                <td>4</td>
+                <td>Заробітна плата продавців</td>
+                <td><a href="{{ url_for('dashboard.query_salaries') }}" class="btn-success">Перейти</a></td>
+            </tr>
+            <tr>
+                <td>5</td>
+                <td>Обсяг продажів товару</td>
+                <td><a href="{{ url_for('dashboard.query_sales_volume') }}" class="btn-success">Перейти</a></td>
+            </tr>
+            <tr>
+                <td>6</td>
+                <td>Рентабельність торгових точок</td>
+                <td><a href="{{ url_for('dashboard.query_profitability') }}" class="btn-success">Перейти</a></td>
+            </tr>
+            <tr>
+                <td>7</td>
+                <td>Товарообіг торгових точок</td>
+                <td><a href="{{ url_for('dashboard.query_turnover') }}" class="btn-success">Перейти</a></td>
+            </tr>
+            <tr>
+                <td>8</td>
+                <td>Номенклатура і обсяг товарів</td>
+                <td><a href="{{ url_for('dashboard.query_inventory') }}" class="btn-success">Перейти</a></td>
+            </tr>
+            <tr>
+                <td>9</td>
+                <td>Покупці зазначеного товару</td>
+                <td><a href="{{ url_for('dashboard.query_customers') }}" class="btn-success">Перейти</a></td>
+            </tr>
+            <tr>
+                <td>10</td>
+                <td>Постачальники зазначеного товару</td>
+                <td><a href="{{ url_for('dashboard.query_suppliers') }}" class="btn-success">Перейти</a></td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+{% endblock %}

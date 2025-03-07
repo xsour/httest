@@ -1,0 +1,407 @@
+{% extends 'dashboard_base.html' %}
+
+{% block title %}Працівники{% endblock %}
+
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tables.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/modals.css') }}">
+    <script>
+        // Передача ролі користувача до JavaScript
+        const userRole = "{{ session.get('role') }}";
+
+        // Функція для відкриття модального вікна
+        function openModal(title, employee = null) {
+            document.getElementById('modal-title').innerText = title;
+            const modal = document.getElementById('employeeModal');
+            modal.style.display = 'block';
+
+            if (employee) {
+                document.getElementById('id').value = employee.id;
+                document.getElementById('first_name').value = employee.first_name;
+                document.getElementById('last_name').value = employee.last_name;
+                document.getElementById('position').value = employee.position;
+                document.getElementById('salary').value = employee.salary;
+                document.getElementById('trading_point_id').value = employee.trading_point_id || '';
+                document.getElementById('hall_id').value = employee.hall_id || '';
+                document.getElementById('section_id').value = employee.section_id || '';
+            } else {
+                document.getElementById('employeeForm').reset();
+                document.getElementById('id').value = ''; // Очистити поле ID
+            }
+        }
+
+        // Закриття модальних вікон
+        document.addEventListener('DOMContentLoaded', function () {
+            // Закриття модального вікна для додавання/редагування
+            document.querySelectorAll('.close').forEach(element => {
+                element.onclick = function () {
+                    const modal = this.closest('.modal');
+                    if (modal) {
+                        modal.style.display = 'none';
+                    }
+                }
+            });
+
+            window.onclick = function (event) {
+                const modals = document.querySelectorAll('.modal');
+                modals.forEach(modal => {
+                    if (event.target == modal) {
+                        modal.style.display = 'none';
+                    }
+                });
+            }
+
+            // Додати слухачі подій для кнопок видалення
+            const deleteButtons = document.querySelectorAll('.btn-danger');
+            deleteButtons.forEach(button => {
+                button.addEventListener('click', function () {
+                    const employeeId = this.getAttribute('data-id');
+                    openDeleteConfirmModal(employeeId);
+                });
+            });
+        });
+
+        // Функція для збереження працівника через AJAX
+        function saveEmployee(event) {
+            event.preventDefault();
+            const form = document.getElementById('employeeForm');
+            const formData = new FormData(form);
+            const isEditing = document.getElementById('id').value !== '';
+            const url = isEditing ? "{{ url_for('dashboard.edit_employee') }}" : "{{ url_for('dashboard.add_employee') }}";
+
+            fetch(url, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest' // Додаємо заголовок для ідентифікації AJAX-запиту
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                showFlashMessage(data.message, data.status);
+                if (data.status === 'success') {
+                    document.getElementById('employeeModal').style.display = 'none';
+                    if (!isEditing) {
+                        addTableRow(data.employee);
+                    } else {
+                        updateTableRow(data.employee);
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Помилка:', error);
+                showFlashMessage('Сталася помилка при збереженні працівника.', 'error');
+            });
+        }
+
+        // Функція для відображення флеш-повідомлень
+        function showFlashMessage(message, category) {
+            const flashMessages = document.getElementById('flash-messages');
+            const flashMessage = document.createElement('div');
+            flashMessage.className = `flash ${category}`;
+            flashMessage.innerText = message;
+            flashMessages.appendChild(flashMessage);
+
+            // Автоматичне видалення повідомлення через 5 секунд
+            setTimeout(() => {
+                flashMessage.remove();
+            }, 5000);
+        }
+
+        // Функція для додавання нового рядка до таблиці
+        function addTableRow(employee) {
+            const tbody = document.querySelector('.table-container table tbody');
+            const tr = document.createElement('tr');
+
+            tr.innerHTML = `
+                <td>${employee.id}</td>
+                <td>${employee.first_name}</td>
+                <td>${employee.last_name}</td>
+                <td>${employee.position}</td>
+                <td>${employee.salary}</td>
+                <td>${employee.trading_point || ''}</td>
+                <td>${employee.hall || ''}</td>
+                <td>${employee.section || ''}</td>
+                <td style="display: flex; gap: 10px;">
+                    <a href="javascript:void(0);" onclick="openModal('Редагувати працівника', {
+                        id: '${employee.id}',
+                        first_name: '${employee.first_name}',
+                        last_name: '${employee.last_name}',
+                        position: '${employee.position}',
+                        salary: '${employee.salary}',
+                        trading_point_id: '${employee.trading_point_id || ''}',
+                        hall_id: '${employee.hall_id || ''}',
+                        section_id: '${employee.section_id || ''}'
+                    });" class="btn-success">Редагувати</a>
+                    ${['owner', 'admin'].includes(userRole) ?
+                    `<button type="button" class="btn-danger" data-id="${employee.id}">Видалити</button>` : ''}
+                </td>
+            `;
+
+            if (['owner', 'admin'].includes(userRole)) {
+                const deleteButton = tr.querySelector('.btn-danger');
+                if (deleteButton) {
+                    deleteButton.addEventListener('click', function () {
+                        const employeeId = this.getAttribute('data-id');
+                        openDeleteConfirmModal(employeeId);
+                    });
+                }
+            }
+
+            tbody.appendChild(tr);
+        }
+
+        // Функція для оновлення існуючого рядка таблиці
+        function updateTableRow(employee) {
+            const rows = document.querySelectorAll('.table-container table tbody tr');
+            rows.forEach(row => {
+                const idCell = row.querySelector('td:first-child');
+                if (idCell && idCell.textContent == employee.id) {
+                    row.innerHTML = `
+                        <td>${employee.id}</td>
+                        <td>${employee.first_name}</td>
+                        <td>${employee.last_name}</td>
+                        <td>${employee.position}</td>
+                        <td>${employee.salary}</td>
+                        <td>${employee.trading_point || ''}</td>
+                        <td>${employee.hall || ''}</td>
+                        <td>${employee.section || ''}</td>
+                        <td style="display: flex; gap: 10px;">
+                            <a href="javascript:void(0);" onclick="openModal('Редагувати працівника', {
+                                id: '${employee.id}',
+                                first_name: '${employee.first_name}',
+                                last_name: '${employee.last_name}',
+                                position: '${employee.position}',
+                                salary: '${employee.salary}',
+                                trading_point_id: '${employee.trading_point_id || ''}',
+                                hall_id: '${employee.hall_id || ''}',
+                                section_id: '${employee.section_id || ''}'
+                            });" class="btn-success">Редагувати</a>
+                            ${['owner', 'admin'].includes(userRole) ?
+                            `<button type="button" class="btn-danger" data-id="${employee.id}">Видалити</button>` : ''}
+                        </td>
+                    `;
+
+                    if (['owner', 'admin'].includes(userRole)) {
+                        const deleteButton = row.querySelector('.btn-danger');
+                        if (deleteButton) {
+                            deleteButton.addEventListener('click', function () {
+                                const employeeId = this.getAttribute('data-id');
+                                openDeleteConfirmModal(employeeId);
+                            });
+                        }
+                    }
+                }
+            });
+        }
+
+        // Функція для відкриття модального вікна підтвердження видалення
+        function openDeleteConfirmModal(employeeId) {
+            const modal = document.getElementById('deleteConfirmModal');
+            modal.style.display = 'block';
+            document.getElementById('delete-employee-id').value = employeeId;
+        }
+
+        // Функція для закриття модального вікна підтвердження видалення
+        function closeDeleteConfirmModal() {
+            const modal = document.getElementById('deleteConfirmModal');
+            modal.style.display = 'none';
+            document.getElementById('delete-employee-id').value = '';
+        }
+
+        // Функція для підтвердження видалення працівника через AJAX
+        function confirmDeleteEmployee() {
+            const employeeId = document.getElementById('delete-employee-id').value;
+            if (!employeeId) {
+                showFlashMessage('Не вказано ID працівника для видалення.', 'error');
+                return;
+            }
+
+            fetch("{{ url_for('dashboard.delete_employee') }}", {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: new URLSearchParams({
+                    'id': employeeId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                showFlashMessage(data.message, data.status);
+                if (data.status === 'success') {
+                    const rows = document.querySelectorAll('.table-container table tbody tr');
+                    rows.forEach(row => {
+                        const idCell = row.querySelector('td:first-child');
+                        if (idCell && idCell.textContent == employeeId) {
+                            row.remove();
+                        }
+                    });
+                    closeDeleteConfirmModal();
+                }
+            })
+            .catch(error => {
+                console.error('Помилка:', error);
+                showFlashMessage('Сталася помилка при видаленні працівника.', 'error');
+                closeDeleteConfirmModal();
+            });
+        }
+    </script>
+{% endblock %}
+
+{% block content %}
+<h1>Список працівників</h1>
+
+{% if session.get('role') in ['owner', 'admin'] %}
+    <a href="javascript:void(0);" onclick="openModal('Додати працівника');" class="button">Додати нового працівника</a>
+{% endif %}
+
+<form method="GET" action="{{ url_for('dashboard.employees') }}" style="margin-top: 20px;">
+    <input type="text" name="search" placeholder="Пошук працівників" value="{{ request.args.get('search', '') }}">
+    <button type="submit">Пошук</button>
+</form>
+
+<div class="table-container">
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Ім'я</th>
+                <th>Прізвище</th>
+                <th>Посада</th>
+                <th>Зарплата (грн)</th>
+                <th>Торгова точка</th>
+                <th>Зала</th>
+                <th>Секція</th>
+                {% if session.get('role') in ['owner', 'admin', 'operator'] %}
+                    <th>Дії</th>
+                {% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for emp in employees %}
+            <tr>
+                <td>{{ emp[0] }}</td>
+                <td>{{ emp[1] }}</td>
+                <td>{{ emp[2] }}</td>
+                <td>{{ emp[3] }}</td>
+                <td>{{ emp[4] }}</td>
+                <td>{{ emp[6] or '' }}</td>
+                <td>{{ emp[8] or '' }}</td>
+                <td>{{ emp[10] or '' }}</td>
+
+                {% if session.get('role') in ['owner', 'admin', 'operator'] %}
+                <td style="display: flex; gap: 10px;">
+                    <a href="javascript:void(0);" onclick="openModal('Редагувати працівника', {
+                        id: '{{ emp[0] }}',
+                        first_name: '{{ emp[1] }}',
+                        last_name: '{{ emp[2] }}',
+                        position: '{{ emp[3] }}',
+                        salary: '{{ emp[4] }}',
+                        trading_point_id: '{{ emp[5] or '' }}',
+                        trading_point: '{{ emp[6] or '' }}',
+                        hall_id: '{{ emp[7] or '' }}',
+                        hall: '{{ emp[8] or '' }}',
+                        section_id: '{{ emp[9] or '' }}',
+                        section: '{{ emp[10] or '' }}'
+                    });" class="btn-success">Редагувати</a>
+
+                    {% if session.get('role') in ['owner', 'admin'] %}
+                    <button type="button" class="btn-danger" data-id="{{ emp[0] }}">Видалити</button>
+                    {% endif %}
+                </td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Контейнер для флеш-повідомлень -->
+<div id="flash-messages">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="flash {{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+</div>
+
+
+<!-- Модальне вікно для додавання/редагування працівника -->
+<div id="employeeModal" class="modal">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2 id="modal-title">Додати працівника</h2>
+        <form id="employeeForm" class="admin-form">
+            <input type="hidden" id="id" name="id">
+            <div class="form-group">
+                <label for="first_name">Ім'я:</label>
+                <input type="text" id="first_name" name="first_name" required>
+            </div>
+            <div class="form-group">
+                <label for="last_name">Прізвище:</label>
+                <input type="text" id="last_name" name="last_name" required>
+            </div>
+            <div class="form-group">
+                <label for="position">Посада:</label>
+                <select id="position" name="position" required>
+                    <option value="Продавець">Продавець</option>
+                    <option value="Керуючий секцією">Керуючий секцією</option>
+                    <!-- Додайте інші посади за необхідності -->
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="salary">Зарплата (грн):</label>
+                <input type="number" id="salary" name="salary" step="0.01" required>
+            </div>
+            <div class="form-group">
+                <label for="trading_point_id">Торгова точка:</label>
+                <select id="trading_point_id" name="trading_point_id">
+                    <option value="">Не обрано</option>
+                    {% for tp in trading_points %}
+                        <option value="{{ tp[0] }}">{{ tp[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="hall_id">Зала:</label>
+                <select id="hall_id" name="hall_id">
+                    <option value="">Не обрано</option>
+                    {% for hall in halls %}
+                        <option value="{{ hall[0] }}">{{ hall[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="section_id">Секція:</label>
+                <select id="section_id" name="section_id">
+                    <option value="">Не обрано</option>
+                    {% for section in sections %}
+                        <option value="{{ section[0] }}">{{ section[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="button" onclick="saveEmployee(event)">Зберегти</button>
+        </form>
+    </div>
+</div>
+
+<!-- Модальне вікно для підтвердження видалення працівника -->
+<div id="deleteConfirmModal" class="modal">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2>Підтвердження видалення</h2>
+        <p>Ви впевнені, що хочете видалити цього працівника?</p>
+        <form id="deleteForm" class="delete-form">
+            <input type="hidden" id="delete-employee-id" name="id">
+            <div class="button-group">
+                <button type="button" class="btn-confirm" onclick="confirmDeleteEmployee()">Так, видалити</button>
+                <button type="button" class="btn-cancel" onclick="closeDeleteConfirmModal()">Скасувати</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

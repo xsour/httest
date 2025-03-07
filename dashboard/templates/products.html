@@ -1,0 +1,322 @@
+{% extends 'dashboard_base.html' %}
+
+{% block title %}Товари{% endblock %}
+
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tables.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/modals.css') }}">
+    <script>
+        // Передача ролі користувача до JavaScript
+        const userRole = "{{ session.get('role') }}";
+
+        // Функція для відкриття модального вікна
+        function openModal(title, product = null) {
+            document.getElementById('modal-title').innerText = title;
+            const modal = document.getElementById('productModal');
+            modal.style.display = 'block';
+
+            if (product) {
+                document.getElementById('id').value = product.id;
+                document.getElementById('name').value = product.name;
+                document.getElementById('description').value = product.description || '';
+            } else {
+                document.getElementById('productForm').reset();
+                document.getElementById('id').value = '';
+            }
+        }
+
+        // Закриття модальних вікон
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('.close').forEach(element => {
+                element.onclick = function () {
+                    const modal = this.closest('.modal');
+                    if (modal) {
+                        modal.style.display = 'none';
+                    }
+                }
+            });
+
+            window.onclick = function (event) {
+                const modals = document.querySelectorAll('.modal');
+                modals.forEach(modal => {
+                    if (event.target == modal) {
+                        modal.style.display = 'none';
+                    }
+                });
+            }
+
+            // Слухачі для кнопок видалення
+            const deleteButtons = document.querySelectorAll('.btn-danger');
+            deleteButtons.forEach(button => {
+                button.addEventListener('click', function () {
+                    const productId = this.getAttribute('data-id');
+                    openDeleteConfirmModal(productId);
+                });
+            });
+        });
+
+        // Збереження товару через AJAX
+        function saveProduct(event) {
+            event.preventDefault();
+            const form = document.getElementById('productForm');
+            const formData = new FormData(form);
+            const isEditing = document.getElementById('id').value !== '';
+            const url = isEditing ? "{{ url_for('dashboard.edit_product') }}" : "{{ url_for('dashboard.add_product') }}";
+
+            fetch(url, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                showFlashMessage(data.message, data.status);
+                if (data.status === 'success') {
+                    document.getElementById('productModal').style.display = 'none';
+                    if (!isEditing) {
+                        addTableRow(data.product);
+                    } else {
+                        updateTableRow(data.product);
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Помилка:', error);
+                showFlashMessage('Сталася помилка при збереженні товару.', 'error');
+            });
+        }
+
+        // Відображення флеш-повідомлень
+        function showFlashMessage(message, category) {
+            const flashMessages = document.getElementById('flash-messages');
+            const flashMessage = document.createElement('div');
+            flashMessage.className = `flash ${category}`;
+            flashMessage.innerText = message;
+            flashMessages.appendChild(flashMessage);
+
+            setTimeout(() => {
+                flashMessage.remove();
+            }, 5000);
+        }
+
+        // Додавання нового рядка до таблиці
+        function addTableRow(product) {
+            const tbody = document.querySelector('.table-container table tbody');
+            const tr = document.createElement('tr');
+
+            tr.innerHTML = `
+                <td>${product.id}</td>
+                <td>${product.name}</td>
+                <td>${product.description || ''}</td>
+                <td style="display: flex; gap: 10px;">
+                    <a href="javascript:void(0);" onclick="openModal('Редагувати товар', {
+                        id: '${product.id}',
+                        name: '${product.name.replace(/'/g, "\\'")}',
+                        description: '${(product.description || '').replace(/'/g, "\\'")}'
+                    });" class="btn-success">Редагувати</a>
+                    ${['owner', 'admin'].includes(userRole) ?
+                    `<button type="button" class="btn-danger" data-id="${product.id}">Видалити</button>` : ''}
+                </td>
+            `;
+
+            if (['owner', 'admin'].includes(userRole)) {
+                const deleteButton = tr.querySelector('.btn-danger');
+                if (deleteButton) {
+                    deleteButton.addEventListener('click', function () {
+                        const productId = this.getAttribute('data-id');
+                        openDeleteConfirmModal(productId);
+                    });
+                }
+            }
+
+            tbody.appendChild(tr);
+        }
+
+        // Оновлення існуючого рядка таблиці
+        function updateTableRow(product) {
+            const rows = document.querySelectorAll('.table-container table tbody tr');
+            rows.forEach(row => {
+                const idCell = row.querySelector('td:first-child');
+                if (idCell && idCell.textContent == product.id) {
+                    row.innerHTML = `
+                        <td>${product.id}</td>
+                        <td>${product.name}</td>
+                        <td>${product.description || ''}</td>
+                        <td style="display: flex; gap: 10px;">
+                            <a href="javascript:void(0);" onclick="openModal('Редагувати товар', {
+                                id: '${product.id}',
+                                name: '${product.name.replace(/'/g, "\\'")}',
+                                description: '${(product.description || '').replace(/'/g, "\\'")}'
+                            });" class="btn-success">Редагувати</a>
+                            ${['owner', 'admin'].includes(userRole) ?
+                            `<button type="button" class="btn-danger" data-id="${product.id}">Видалити</button>` : ''}
+                        </td>
+                    `;
+
+                    if (['owner', 'admin'].includes(userRole)) {
+                        const deleteButton = row.querySelector('.btn-danger');
+                        if (deleteButton) {
+                            deleteButton.addEventListener('click', function () {
+                                const productId = this.getAttribute('data-id');
+                                openDeleteConfirmModal(productId);
+                            });
+                        }
+                    }
+                }
+            });
+        }
+
+        // Відкриття модального вікна підтвердження видалення
+        function openDeleteConfirmModal(productId) {
+            const modal = document.getElementById('deleteConfirmModal');
+            modal.style.display = 'block';
+            document.getElementById('delete-product-id').value = productId;
+        }
+
+        // Закриття модального вікна підтвердження видалення
+        function closeDeleteConfirmModal() {
+            const modal = document.getElementById('deleteConfirmModal');
+            modal.style.display = 'none';
+            document.getElementById('delete-product-id').value = '';
+        }
+
+        // Підтвердження видалення товару через AJAX
+        function confirmDeleteProduct() {
+            const productId = document.getElementById('delete-product-id').value;
+            if (!productId) {
+                showFlashMessage('Не вказано ID товару для видалення.', 'error');
+                return;
+            }
+
+            fetch("{{ url_for('dashboard.delete_product') }}", {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: new URLSearchParams({
+                    'id': productId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                showFlashMessage(data.message, data.status);
+                if (data.status === 'success') {
+                    const rows = document.querySelectorAll('.table-container table tbody tr');
+                    rows.forEach(row => {
+                        const idCell = row.querySelector('td:first-child');
+                        if (idCell && idCell.textContent == productId) {
+                            row.remove();
+                        }
+                    });
+                    closeDeleteConfirmModal();
+                }
+            })
+            .catch(error => {
+                console.error('Помилка:', error);
+                showFlashMessage('Сталася помилка при видаленні товару.', 'error');
+                closeDeleteConfirmModal();
+            });
+        }
+    </script>
+{% endblock %}
+
+{% block content %}
+<h1>Список товарів</h1>
+
+{% if session.get('role') in ['owner', 'admin'] %}
+    <a href="javascript:void(0);" onclick="openModal('Додати товар');" class="button">Додати новий товар</a>
+{% endif %}
+
+<form method="GET" action="{{ url_for('dashboard.products') }}" style="margin-top: 20px;">
+    <input type="text" name="search" placeholder="Пошук товарів" value="{{ request.args.get('search', '') }}">
+    <button type="submit">Пошук</button>
+</form>
+
+<div class="table-container">
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Назва</th>
+                <th>Опис</th>
+                {% if session.get('role') in ['owner', 'admin', 'operator'] %}
+                    <th>Дії</th>
+                {% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for prod in products %}
+            <tr>
+                <td>{{ prod[0] }}</td>
+                <td>{{ prod[1] }}</td>
+                <td>{{ prod[2] or '' }}</td>
+
+                {% if session.get('role') in ['owner', 'admin', 'operator'] %}
+                <td style="display: flex; gap: 10px;">
+                    <a href="javascript:void(0);" onclick="openModal('Редагувати товар', {
+                        id: '{{ prod[0] }}',
+                        name: '{{ prod[1] }}',
+                        description: '{{ prod[2] or '' }}'
+                    });" class="btn-success">Редагувати</a>
+
+                    {% if session.get('role') in ['owner', 'admin'] %}
+                    <button type="button" class="btn-danger" data-id="{{ prod[0] }}">Видалити</button>
+                    {% endif %}
+                </td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Контейнер для флеш-повідомлень -->
+<div id="flash-messages">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="flash {{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+</div>
+
+<!-- Модальне вікно для додавання/редагування товару -->
+<div id="productModal" class="modal">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2 id="modal-title">Додати товар</h2>
+        <form id="productForm" class="admin-form">
+            <input type="hidden" id="id" name="id">
+            <div class="form-group">
+                <label for="name">Назва:</label>
+                <input type="text" id="name" name="name" required>
+            </div>
+            <div class="form-group">
+                <label for="description">Опис:</label>
+                <textarea id="description" name="description"></textarea>
+            </div>
+            <button type="button" onclick="saveProduct(event)">Зберегти</button>
+        </form>
+    </div>
+</div>
+
+<!-- Модальне вікно для підтвердження видалення товару -->
+<div id="deleteConfirmModal" class="modal">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2>Підтвердження видалення</h2>
+        <p>Ви впевнені, що хочете видалити цей товар?</p>
+        <form id="deleteForm" class="delete-form">
+            <input type="hidden" id="delete-product-id" name="id">
+            <div class="button-group">
+                <button type="button" class="btn-confirm" onclick="confirmDeleteProduct()">Так, видалити</button>
+                <button type="button" class="btn-cancel" onclick="closeDeleteConfirmModal()">Скасувати</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

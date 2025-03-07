@@ -1,0 +1,50 @@
+{% extends 'dashboard_base.html' %}
+
+{% block title %}Прибутковість торгових точок{% endblock %}
+
+{% block content %}
+<h1>Прибутковість торгових точок</h1>
+
+<form method="POST">
+    <label for="start_date">Дата початку:</label>
+    <input type="date" name="start_date" id="start_date" required>
+
+    <label for="end_date">Дата завершення:</label>
+    <input type="date" name="end_date" id="end_date" required>
+
+    <label for="trading_point_id">Торгова точка:</label>
+    <select name="trading_point_id" id="trading_point_id">
+        <option value="">Всі</option>
+        {% for tp in trading_points %}
+            <option value="{{ tp[0] }}">{{ tp[1] }}</option>
+        {% endfor %}
+    </select>
+
+    <button type="submit">Пошук</button>
+</form>
+
+{% if profitability %}
+    <table>
+        <thead>
+            <tr>
+                <th>Торгова точка</th>
+                <th>Обсяг продажів</th>
+                <th>Накладні витрати</th>
+                <th>Коефіцієнт прибутковості</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in profitability %}
+                <tr>
+                    <td>{{ p[0] }}</td>
+                    <td>{{ p[1] }}</td>
+                    <td>{{ p[2] }}</td>
+                    <td>{{ p[3] | round(2) if p[3] else "Немає даних" }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <p>Немає даних для відображення.</p>
+{% endif %}
+{% endblock %}

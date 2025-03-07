@@ -1,0 +1,51 @@
+{% extends 'dashboard_base.html' %}
+
+{% block title %}Клієнти, які придбали товар{% endblock %}
+
+{% block content %}
+<h1>Клієнти, які придбали товар</h1>
+
+<form method="POST">
+    <label for="product_id">Товар:</label>
+    <select name="product_id" id="product_id" required>
+        {% for product in products %}
+            <option value="{{ product[0] }}">{{ product[1] }}</option>
+        {% endfor %}
+    </select>
+
+    <label for="start_date">Дата початку:</label>
+    <input type="date" name="start_date" id="start_date">
+
+    <label for="end_date">Дата завершення:</label>
+    <input type="date" name="end_date" id="end_date">
+
+    <label for="min_quantity">Мінімальна кількість:</label>
+    <input type="number" name="min_quantity" id="min_quantity" min="1">
+
+    <button type="submit">Пошук</button>
+</form>
+
+{% if customers %}
+    <p>Загальна кількість клієнтів: {{ total_customers }}</p>
+    <table>
+        <thead>
+            <tr>
+                <th>Ім'я</th>
+                <th>Прізвище</th>
+                <th>Телефон</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for customer in customers %}
+                <tr>
+                    <td>{{ customer[0] }}</td>
+                    <td>{{ customer[1] }}</td>
+                    <td>{{ customer[2] }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <p>Немає даних для відображення.</p>
+{% endif %}
+{% endblock %}

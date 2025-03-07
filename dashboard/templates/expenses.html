@@ -1,0 +1,356 @@
+{% extends 'dashboard_base.html' %}
+
+{% block title %}Витрати{% endblock %}
+
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tables.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/modals.css') }}">
+    <script>
+        const userRole = "{{ session.get('role') }}";
+
+        // Відкриття модального вікна
+        function openModal(title, expense = null) {
+            console.log("openModal called with:", title, expense); // Для відлагодження
+            document.getElementById('modal-title').innerText = title;
+            const modal = document.getElementById('expenseModal');
+            modal.style.display = 'block';
+
+            if (expense) {
+                document.getElementById('id').value = expense.id;
+                document.getElementById('trading_point_id').value = expense.trading_point_id;
+                document.getElementById('expense_type').value = expense.expense_type;
+                document.getElementById('amount').value = expense.amount;
+                document.getElementById('start_date').value = expense.start_date;
+                document.getElementById('end_date').value = expense.end_date;
+            } else {
+                document.getElementById('expenseForm').reset();
+                document.getElementById('id').value = '';
+            }
+        }
+
+        // Закриття модальних вікон
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('.close').forEach(element => {
+                element.onclick = function () {
+                    const modal = this.closest('.modal');
+                    if (modal) {
+                        modal.style.display = 'none';
+                    }
+                }
+            });
+
+            window.onclick = function (event) {
+                const modals = document.querySelectorAll('.modal');
+                modals.forEach(modal => {
+                    if (event.target == modal) {
+                        modal.style.display = 'none';
+                    }
+                });
+            }
+
+            // Слухачі для кнопок видалення
+            const deleteButtons = document.querySelectorAll('.btn-danger');
+            deleteButtons.forEach(button => {
+                button.addEventListener('click', function () {
+                    const expenseId = this.getAttribute('data-id');
+                    openDeleteConfirmModal(expenseId);
+                });
+            });
+        });
+
+        // Збереження витрати
+        function saveExpense(event) {
+            event.preventDefault();
+            const form = document.getElementById('expenseForm');
+            const formData = new FormData(form);
+            const isEditing = document.getElementById('id').value !== '';
+            const url = isEditing ? "{{ url_for('dashboard.edit_expense') }}" : "{{ url_for('dashboard.add_expense') }}";
+
+            fetch(url, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                showFlashMessage(data.message, data.status);
+                if (data.status === 'success') {
+                    document.getElementById('expenseModal').style.display = 'none';
+                    if (!isEditing) {
+                        addTableRow(data.expense);
+                    } else {
+                        updateTableRow(data.expense);
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Помилка:', error);
+                showFlashMessage('Сталася помилка при збереженні витрати.', 'error');
+            });
+        }
+
+        // Відображення флеш-повідомлень
+        function showFlashMessage(message, category) {
+            const flashMessages = document.getElementById('flash-messages');
+            const flashMessage = document.createElement('div');
+            flashMessage.className = `flash ${category}`;
+            flashMessage.innerText = message;
+            flashMessages.appendChild(flashMessage);
+
+            setTimeout(() => {
+                flashMessage.remove();
+            }, 5000);
+        }
+
+        // Додавання нового рядка до таблиці
+        function addTableRow(expense) {
+            const tbody = document.querySelector('.table-container table tbody');
+            const tr = document.createElement('tr');
+
+            tr.innerHTML = `
+                <td>${expense.id}</td>
+                <td>${expense.trading_point_name}</td>
+                <td>${expense.expense_type}</td>
+                <td>${parseFloat(expense.amount).toFixed(2)}</td>
+                <td>${expense.start_date}</td>
+                <td>${expense.end_date || ''}</td>
+                <td style="display: flex; gap: 10px;">
+                    <a href="javascript:void(0);" onclick='openModal("Редагувати витрату", ${JSON.stringify(expense)})' class="btn-success">Редагувати</a>
+                    ${['owner', 'admin'].includes(userRole) ?
+                    `<button type="button" class="btn-danger" data-id="${expense.id}">Видалити</button>` : ''}
+                </td>
+            `;
+
+            if (['owner', 'admin'].includes(userRole)) {
+                const deleteButton = tr.querySelector('.btn-danger');
+                if (deleteButton) {
+                    deleteButton.addEventListener('click', function () {
+                        const expenseId = this.getAttribute('data-id');
+                        openDeleteConfirmModal(expenseId);
+                    });
+                }
+            }
+
+            tbody.appendChild(tr);
+        }
+
+        // Оновлення існуючого рядка таблиці
+        function updateTableRow(expense) {
+            const rows = document.querySelectorAll('.table-container table tbody tr');
+            rows.forEach(row => {
+                const idCell = row.querySelector('td:first-child');
+                if (idCell && idCell.textContent == expense.id) {
+                    row.innerHTML = `
+                        <td>${expense.id}</td>
+                        <td>${expense.trading_point_name}</td>
+                        <td>${expense.expense_type}</td>
+                        <td>${parseFloat(expense.amount).toFixed(2)}</td>
+                        <td>${expense.start_date}</td>
+                        <td>${expense.end_date || ''}</td>
+                        <td style="display: flex; gap: 10px;">
+                            <a href="javascript:void(0);" onclick='openModal("Редагувати витрату", ${JSON.stringify(expense)})' class="btn-success">Редагувати</a>
+                            ${['owner', 'admin'].includes(userRole) ?
+                            `<button type="button" class="btn-danger" data-id="${expense.id}">Видалити</button>` : ''}
+                        </td>
+                    `;
+
+                    if (['owner', 'admin'].includes(userRole)) {
+                        const deleteButton = row.querySelector('.btn-danger');
+                        if (deleteButton) {
+                            deleteButton.addEventListener('click', function () {
+                                const expenseId = this.getAttribute('data-id');
+                                openDeleteConfirmModal(expenseId);
+                            });
+                        }
+                    }
+                }
+            });
+        }
+
+        // Відкриття модального вікна підтвердження видалення
+        function openDeleteConfirmModal(expenseId) {
+            const modal = document.getElementById('deleteConfirmModal');
+            modal.style.display = 'block';
+            document.getElementById('delete-expense-id').value = expenseId;
+        }
+
+        // Закриття модального вікна підтвердження видалення
+        function closeDeleteConfirmModal() {
+            const modal = document.getElementById('deleteConfirmModal');
+            modal.style.display = 'none';
+            document.getElementById('delete-expense-id').value = '';
+        }
+
+        // Підтвердження видалення витрати через AJAX
+        function confirmDeleteExpense() {
+            const expenseId = document.getElementById('delete-expense-id').value;
+            if (!expenseId) {
+                showFlashMessage('Не вказано ID витрати для видалення.', 'error');
+                return;
+            }
+
+            fetch("{{ url_for('dashboard.delete_expense') }}", {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: new URLSearchParams({
+                    'id': expenseId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                showFlashMessage(data.message, data.status);
+                if (data.status === 'success') {
+                    const rows = document.querySelectorAll('.table-container table tbody tr');
+                    rows.forEach(row => {
+                        const idCell = row.querySelector('td:first-child');
+                        if (idCell && idCell.textContent == expenseId) {
+                            row.remove();
+                        }
+                    });
+                    closeDeleteConfirmModal();
+                }
+            })
+            .catch(error => {
+                console.error('Помилка:', error);
+                showFlashMessage('Сталася помилка при видаленні витрати.', 'error');
+                closeDeleteConfirmModal();
+            });
+        }
+    </script>
+{% endblock %}
+
+{% block content %}
+<h1>Список витрат</h1>
+
+{% if session.get('role') in ['owner', 'admin'] %}
+    <a href="javascript:void(0);" onclick="openModal('Додати витрату');" class="button">Додати нову витрату</a>
+{% endif %}
+
+<form method="GET" action="{{ url_for('dashboard.expenses') }}" style="margin-top: 20px;">
+    <input type="text" name="search" placeholder="Пошук витрат" value="{{ request.args.get('search', '') }}">
+    <button type="submit">Пошук</button>
+</form>
+
+<div class="table-container">
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Торгова точка</th>
+                <th>Тип витрати</th>
+                <th>Сума (грн)</th>
+                <th>Дата початку</th>
+                <th>Дата завершення</th>
+                {% if session.get('role') in ['owner', 'admin', 'operator'] %}
+                    <th>Дії</th>
+                {% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for expense in expenses %}
+            <tr>
+                <td>{{ expense[0] }}</td>
+                <td>{{ expense[2] }}</td> <!-- trading_point_name -->
+                <td>{{ expense[3] }}</td>
+                <td>{{ '%.2f'|format(expense[4]) }}</td>
+                <td>{{ expense[5] }}</td>
+                <td>{{ expense[6] or '' }}</td>
+
+                {% if session.get('role') in ['owner', 'admin', 'operator'] %}
+                <td style="display: flex; gap: 10px;">
+                    <a href="javascript:void(0);"
+                       onclick='openModal("Редагувати витрату", {{ {
+                           "id": expense[0],
+                           "trading_point_id": expense[1],
+                           "expense_type": expense[3],
+                           "amount": expense[4],
+                           "start_date": expense[5].strftime('%Y-%m-%d') if expense[5] else "",
+                           "end_date": expense[6] or ""
+                       } | tojson | safe }} );'
+                       class="btn-success">Редагувати</a>
+
+                    {% if session.get('role') in ['owner', 'admin'] %}
+                    <button type="button" class="btn-danger" data-id="{{ expense[0] }}">Видалити</button>
+                    {% endif %}
+                </td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Контейнер для флеш-повідомлень -->
+<div id="flash-messages">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="flash {{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+</div>
+
+<!-- Модальне вікно для додавання/редагування витрати -->
+<div id="expenseModal" class="modal">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2 id="modal-title">Додати витрату</h2>
+        <form id="expenseForm" class="admin-form">
+            <input type="hidden" id="id" name="id">
+            <div class="form-group">
+                <label for="trading_point_id">Торгова точка:</label>
+                <select id="trading_point_id" name="trading_point_id" required>
+                    <option value="">Виберіть торгову точку</option>
+                    {% for tp in trading_points %}
+                        <option value="{{ tp[0] }}">{{ tp[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="expense_type">Тип витрати:</label>
+                <select id="expense_type" name="expense_type" required>
+                    <option value="">Виберіть тип витрати</option>
+                    <option value="Оренда">Оренда</option>
+                    <option value="Комунальні послуги">Комунальні послуги</option>
+                    <!-- Додайте інші типи витрат за необхідності -->
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="amount">Сума (грн):</label>
+                <input type="number" id="amount" name="amount" step="0.01" required>
+            </div>
+            <div class="form-group">
+                <label for="start_date">Дата початку:</label>
+                <input type="date" id="start_date" name="start_date" required>
+            </div>
+            <div class="form-group">
+                <label for="end_date">Дата завершення:</label>
+                <input type="date" id="end_date" name="end_date">
+            </div>
+            <button type="button" onclick="saveExpense(event)">Зберегти</button>
+        </form>
+    </div>
+</div>
+
+<!-- Модальне вікно для підтвердження видалення витрати -->
+<div id="deleteConfirmModal" class="modal">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2>Підтвердження видалення</h2>
+        <p>Ви впевнені, що хочете видалити цю витрату?</p>
+        <form id="deleteForm" class="delete-form">
+            <input type="hidden" id="delete-expense-id" name="id">
+            <div class="button-group">
+                <button type="button" class="btn-confirm" onclick="confirmDeleteExpense()">Так, видалити</button>
+                <button type="button" class="btn-cancel" onclick="closeDeleteConfirmModal()">Скасувати</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

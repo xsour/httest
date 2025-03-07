@@ -1,0 +1,391 @@
+{% extends 'dashboard_base.html' %}
+
+{% block title %}Продажі{% endblock %}
+
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tables.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/modals.css') }}">
+    <script>
+        const userRole = "{{ session.get('role') }}";
+
+        function openModal(title, sale = null) {
+            document.getElementById('modal-title').innerText = title;
+            const modal = document.getElementById('saleModal');
+            modal.style.display = 'block';
+
+            if (sale) {
+                document.getElementById('id').value = sale.id;
+                document.getElementById('product_id').value = sale.product_id;
+                document.getElementById('customer_id').value = sale.customer_id || '';
+                document.getElementById('employee_id').value = sale.employee_id || '';
+                document.getElementById('trading_point_id').value = sale.trading_point_id;
+                document.getElementById('sale_date').value = sale.sale_date;
+                document.getElementById('quantity').value = sale.quantity;
+                document.getElementById('selling_price').value = sale.selling_price;
+            } else {
+                document.getElementById('saleForm').reset();
+                document.getElementById('id').value = '';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('.close').forEach(element => {
+                element.onclick = function () {
+                    const modal = this.closest('.modal');
+                    if (modal) {
+                        modal.style.display = 'none';
+                    }
+                }
+            });
+
+            window.onclick = function (event) {
+                const modals = document.querySelectorAll('.modal');
+                modals.forEach(modal => {
+                    if (event.target == modal) {
+                        modal.style.display = 'none';
+                    }
+                });
+            }
+
+            const deleteButtons = document.querySelectorAll('.btn-danger');
+            deleteButtons.forEach(button => {
+                button.addEventListener('click', function () {
+                    const saleId = this.getAttribute('data-id');
+                    openDeleteConfirmModal(saleId);
+                });
+            });
+        });
+
+        function saveSale(event) {
+            event.preventDefault();
+            const form = document.getElementById('saleForm');
+            const formData = new FormData(form);
+            const isEditing = document.getElementById('id').value !== '';
+            const url = isEditing ? "{{ url_for('dashboard.edit_sale') }}" : "{{ url_for('dashboard.add_sale') }}";
+
+            fetch(url, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                showFlashMessage(data.message, data.status);
+                if (data.status === 'success') {
+                    document.getElementById('saleModal').style.display = 'none';
+                    if (!isEditing) {
+                        addTableRow(data.sale);
+                    } else {
+                        updateTableRow(data.sale);
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Помилка:', error);
+                showFlashMessage('Сталася помилка при збереженні продажу.', 'error');
+            });
+        }
+
+        function showFlashMessage(message, category) {
+            const flashMessages = document.getElementById('flash-messages');
+            const flashMessage = document.createElement('div');
+            flashMessage.className = `flash ${category}`;
+            flashMessage.innerText = message;
+            flashMessages.appendChild(flashMessage);
+
+            setTimeout(() => {
+                flashMessage.remove();
+            }, 5000);
+        }
+
+        function addTableRow(sale) {
+            const tbody = document.querySelector('.table-container table tbody');
+            const tr = document.createElement('tr');
+
+            tr.innerHTML = `
+                <td>${sale.id}</td>
+                <td>${sale.product_name}</td>
+                <td>${sale.customer_first_name} ${sale.customer_last_name}</td>
+                <td>${sale.employee_first_name}</td>
+                <td>${sale.trading_point_name}</td>
+                <td>${sale.sale_date}</td>
+                <td>${sale.quantity}</td>
+                <td>${sale.selling_price}</td>
+                <td style="display: flex; gap: 10px;">
+                    <a href="javascript:void(0);" onclick="openModal('Редагувати продаж', {
+                        id: '${sale.id}',
+                        product_id: '${sale.product_id}',
+                        customer_id: '${sale.customer_id}',
+                        employee_id: '${sale.employee_id}',
+                        trading_point_id: '${sale.trading_point_id}',
+                        sale_date: '${sale.sale_date}',
+                        quantity: '${sale.quantity}',
+                        selling_price: '${sale.selling_price}'
+                    });" class="btn-success">Редагувати</a>
+                    ${['owner', 'admin'].includes(userRole) ?
+                    `<button type="button" class="btn-danger" data-id="${sale.id}">Видалити</button>` : ''}
+                </td>
+            `;
+
+            if (['owner', 'admin'].includes(userRole)) {
+                const deleteButton = tr.querySelector('.btn-danger');
+                if (deleteButton) {
+                    deleteButton.addEventListener('click', function () {
+                        const saleId = this.getAttribute('data-id');
+                        openDeleteConfirmModal(saleId);
+                    });
+                }
+            }
+
+            tbody.appendChild(tr);
+        }
+
+        function updateTableRow(sale) {
+            const rows = document.querySelectorAll('.table-container table tbody tr');
+            rows.forEach(row => {
+                const idCell = row.querySelector('td:first-child');
+                if (idCell && idCell.textContent == sale.id) {
+                    row.innerHTML = `
+                        <td>${sale.id}</td>
+                        <td>${sale.product_name}</td>
+                        <td>${sale.customer_first_name} ${sale.customer_last_name}</td>
+                        <td>${sale.employee_first_name}</td>
+                        <td>${sale.trading_point_name}</td>
+                        <td>${sale.sale_date}</td>
+                        <td>${sale.quantity}</td>
+                        <td>${sale.selling_price}</td>
+                        <td style="display: flex; gap: 10px;">
+                            <a href="javascript:void(0);" onclick="openModal('Редагувати продаж', {
+                                id: '${sale.id}',
+                                product_id: '${sale.product_id}',
+                                customer_id: '${sale.customer_id}',
+                                employee_id: '${sale.employee_id}',
+                                trading_point_id: '${sale.trading_point_id}',
+                                sale_date: '${sale.sale_date}',
+                                quantity: '${sale.quantity}',
+                                selling_price: '${sale.selling_price}'
+                            });" class="btn-success">Редагувати</a>
+                            ${['owner', 'admin'].includes(userRole) ?
+                            `<button type="button" class="btn-danger" data-id="${sale.id}">Видалити</button>` : ''}
+                        </td>
+                    `;
+
+                    if (['owner', 'admin'].includes(userRole)) {
+                        const deleteButton = row.querySelector('.btn-danger');
+                        if (deleteButton) {
+                            deleteButton.addEventListener('click', function () {
+                                const saleId = this.getAttribute('data-id');
+                                openDeleteConfirmModal(saleId);
+                            });
+                        }
+                    }
+                }
+            });
+        }
+
+        function openDeleteConfirmModal(saleId) {
+            const modal = document.getElementById('deleteConfirmModal');
+            modal.style.display = 'block';
+            document.getElementById('delete-sale-id').value = saleId;
+        }
+
+        function closeDeleteConfirmModal() {
+            const modal = document.getElementById('deleteConfirmModal');
+            modal.style.display = 'none';
+            document.getElementById('delete-sale-id').value = '';
+        }
+
+        function confirmDeleteSale() {
+            const saleId = document.getElementById('delete-sale-id').value;
+            if (!saleId) {
+                showFlashMessage('Не вказано ID продажу для видалення.', 'error');
+                return;
+            }
+
+            fetch("{{ url_for('dashboard.delete_sale') }}", {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: new URLSearchParams({
+                    'id': saleId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                showFlashMessage(data.message, data.status);
+                if (data.status === 'success') {
+                    const rows = document.querySelectorAll('.table-container table tbody tr');
+                    rows.forEach(row => {
+                        const idCell = row.querySelector('td:first-child');
+                        if (idCell && idCell.textContent == saleId) {
+                            row.remove();
+                        }
+                    });
+                    closeDeleteConfirmModal();
+                }
+            })
+            .catch(error => {
+                console.error('Помилка:', error);
+                showFlashMessage('Сталася помилка при видаленні продажу.', 'error');
+                closeDeleteConfirmModal();
+            });
+        }
+    </script>
+{% endblock %}
+
+{% block content %}
+<h1>Список продажів</h1>
+
+{% if session.get('role') in ['owner', 'admin'] %}
+    <a href="javascript:void(0);" onclick="openModal('Додати продаж');" class="button">Додати новий продаж</a>
+{% endif %}
+
+<form method="GET" action="{{ url_for('dashboard.sales') }}" style="margin-top: 20px;">
+    <input type="text" name="search" placeholder="Пошук продажів" value="{{ request.args.get('search', '') }}">
+    <button type="submit">Пошук</button>
+</form>
+
+<div class="table-container">
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Товар</th>
+                <th>Покупець</th>
+                <th>Працівник</th>
+                <th>Торгова точка</th>
+                <th>Дата продажу</th>
+                <th>Кількість</th>
+                <th>Ціна продажу (грн)</th>
+                {% if session.get('role') in ['owner', 'admin', 'operator'] %}
+                    <th>Дії</th>
+                {% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for sale in sales %}
+            <tr>
+                <td>{{ sale[0] }}</td>
+                <td>{{ sale[1] }}</td>
+                <td>{{ sale[2] }} {{ sale[3] }}</td>
+                <td>{{ sale[4] or '' }}</td>
+                <td>{{ sale[5] }}</td>
+                <td>{{ sale[6] }}</td>
+                <td>{{ sale[7] }}</td>
+                <td>{{ sale[8] }}</td>
+
+                {% if session.get('role') in ['owner', 'admin', 'operator'] %}
+                <td style="display: flex; gap: 10px;">
+                    <a href="javascript:void(0);" onclick="openModal('Редагувати продаж', {
+                        id: '{{ sale[0] }}',
+                        product_id: '{{ sale[1] }}',
+                        customer_id: '{{ sale[2] }}',
+                        employee_id: '{{ sale[4] or '' }}',
+                        trading_point_id: '{{ sale[5] }}',
+                        sale_date: '{{ sale[6] }}',
+                        quantity: '{{ sale[7] }}',
+                        selling_price: '{{ sale[8] }}'
+                    });" class="btn-success">Редагувати</a>
+
+                    {% if session.get('role') in ['owner', 'admin'] %}
+                    <button type="button" class="btn-danger" data-id="{{ sale[0] }}">Видалити</button>
+                    {% endif %}
+                </td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Контейнер для флеш-повідомлень -->
+<div id="flash-messages">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="flash {{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+</div>
+
+<!-- Модальне вікно для додавання/редагування продажу -->
+<div id="saleModal" class="modal">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2 id="modal-title">Додати продаж</h2>
+        <form id="saleForm" class="admin-form">
+            <input type="hidden" id="id" name="id">
+            <div class="form-group">
+                <label for="product_id">Товар:</label>
+                <select id="product_id" name="product_id" required>
+                    <option value="">Виберіть товар</option>
+                    {% for prod in products %}
+                        <option value="{{ prod[0] }}">{{ prod[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="customer_id">Покупець:</label>
+                <select id="customer_id" name="customer_id">
+                    <option value="">Без покупця</option>
+                    {% for cust in customers %}
+                        <option value="{{ cust[0] }}">{{ cust[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="employee_id">Працівник:</label>
+                <select id="employee_id" name="employee_id">
+                    <option value="">Без працівника</option>
+                    {% for emp in employees %}
+                        <option value="{{ emp[0] }}">{{ emp[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="trading_point_id">Торгова точка:</label>
+                <select id="trading_point_id" name="trading_point_id" required>
+                    <option value="">Виберіть торгову точку</option>
+                    {% for tp in trading_points %}
+                        <option value="{{ tp[0] }}">{{ tp[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="sale_date">Дата продажу:</label>
+                <input type="date" id="sale_date" name="sale_date" required>
+            </div>
+            <div class="form-group">
+                <label for="quantity">Кількість:</label>
+                <input type="number" id="quantity" name="quantity" min="1" required>
+            </div>
+            <div class="form-group">
+                <label for="selling_price">Ціна продажу (грн):</label>
+                <input type="number" id="selling_price" name="selling_price" step="0.01" min="0" required>
+            </div>
+            <button type="button" onclick="saveSale(event)">Зберегти</button>
+        </form>
+    </div>
+</div>
+
+<!-- Модальне вікно для підтвердження видалення продажу -->
+<div id="deleteConfirmModal" class="modal">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2>Підтвердження видалення</h2>
+        <p>Ви впевнені, що хочете видалити цей продаж?</p>
+        <form id="deleteForm" class="delete-form">
+            <input type="hidden" id="delete-sale-id" name="id">
+            <div class="button-group">
+                <button type="button" class="btn-confirm" onclick="confirmDeleteSale()">Так, видалити</button>
+                <button type="button" class="btn-cancel" onclick="closeDeleteConfirmModal()">Скасувати</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

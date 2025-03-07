@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Панель керування{% endblock %}</title>
+    <link rel="icon" href="{{ url_for('static', filename='photos/icon.png') }}" type="image/x-icon">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:400,500,700&display=swap">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles2.css') }}">
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <div class="background"></div>
+
+    <!-- Верхнє меню -->
+    <div class="top-bar">
+    <div class="menu-container">
+        <!-- Логотип -->
+        <a href="{{ url_for('dashboard.dashboard') }}">
+            <img src="{{ url_for('static', filename='photos/logo.png') }}" alt="Логотип" class="logo no-animation">
+        </a>
+            <!-- Праве меню -->
+            <div class="top-right-menu">
+                <div class="user-menu" onclick="toggleMiniMenu()">
+                    <img src="{{ url_for('static', filename='photos/usericon.png') }}" alt="Меню" class="settings-icon">
+                </div>
+                <div class="mini-menu" id="miniMenu">
+                    {% if session.get('role') in ['owner', 'admin'] %}
+                        <a href="{{ url_for('dashboard.admin_panel') }}">Адмін-панель</a>
+                    {% endif %}
+                    <a href="{{ url_for('auth.logout') }}">Вийти</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Іконка бокового меню  -->
+    <div class="menu-icon" onclick="toggleSidebar()">
+        <img src="{{ url_for('static', filename='photos/opensbar.png') }}" alt="Меню" id="menu-icon-img">
+    </div>
+
+<!-- Бічна панель -->
+<div class="sidebar" id="sidebar">
+    <ul>
+        <li><a href="{{ url_for('dashboard.dashboard') }}">Головна</a></li>
+
+        <li class="submenu">
+            <a href="javascript:void(0)">Торгові точки</a>
+            <ul class="nested">
+                <li><a href="{{ url_for('dashboard.trading_points') }}">Всі торгові точки</a></li>
+                <li><a href="{{ url_for('dashboard.halls') }}">Зали в універмагах та магазинах</a></li>
+                <li><a href="{{ url_for('dashboard.sections') }}">Секції універмагів</a></li>
+                <li><a href="{{ url_for('dashboard.expenses') }}">Витрати торгових точок</a></li>
+                <li><a href="{{ url_for('dashboard.transfers') }}">Передача товарів між торговими точками</a></li>
+                <li><a href="{{ url_for('dashboard.stocks') }}">Запаси товарів в торгових точках</a></li>
+            </ul>
+        </li>
+
+        <li class="submenu">
+            <a href="javascript:void(0)">Постачальники</a>
+            <ul class="nested">
+                <li><a href="{{ url_for('dashboard.suppliers') }}">Всі постачальники</a></li>
+                <li><a href="{{ url_for('dashboard.supplier_products') }}">Товари від постачальників</a></li>
+                <li><a href="{{ url_for('dashboard.orders') }}">Замовлення постачальникам</a></li>
+                <li><a href="{{ url_for('dashboard.order_items') }}">Товари в замовленнях</a></li>
+            </ul>
+        </li>
+
+        <li class="submenu">
+            <a href="javascript:void(0)">Товари</a>
+            <ul class="nested">
+                <li><a href="{{ url_for('dashboard.products') }}">Всі товари</a></li>
+                <li><a href="{{ url_for('dashboard.price_history') }}">Історія цін на товари</a></li>
+            </ul>
+        </li>
+
+        <li><a href="{{ url_for('dashboard.employees') }}">Працівники</a></li>
+        <li><a href="{{ url_for('dashboard.customers') }}">Покупці</a></li>
+        <li><a href="{{ url_for('dashboard.sales') }}">Продажі</a></li>
+        <li><a href="{{ url_for('dashboard.queries') }}">Запити</a></li>
+    </ul>
+</div>
+
+
+
+    <!-- Основний контент -->
+    <div class="main-content" id="main-content">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div id="flash-messages" class="show">
+                    {% for category, message in messages %}
+                        <div class="flash {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+        {% block content %}
+
+        {% endblock %}
+    </div>
+
+
+    <script>
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const mainContent = document.getElementById('main-content');
+            const logo = document.querySelector('.logo');
+            const menuIconImg = document.getElementById('menu-icon-img');
+
+            sidebar.classList.toggle('active');
+            mainContent.classList.toggle('shrink');
+            logo.classList.remove('no-animation');
+
+            if (sidebar.classList.contains('active')) {
+                logo.style.transform = 'translateX(250px)';
+                menuIconImg.src = "{{ url_for('static', filename='photos/closesbar.png') }}";  // Іконка закриття
+            } else {
+                logo.style.transform = 'translateX(0)';
+                menuIconImg.src = "{{ url_for('static', filename='photos/opensbar.png') }}";   // Іконка відкриття
+            }
+        }
+
+        window.onload = function() {
+            const sidebar = document.getElementById('sidebar');
+            const logo = document.querySelector('.logo');
+            const menuIconImg = document.getElementById('menu-icon-img');
+
+            if (sidebar.classList.contains('active')) {
+                logo.style.transform = 'translateX(250px)';
+                menuIconImg.src = "{{ url_for('static', filename='photos/closesbar.png') }}";  // Іконка закриття
+            } else {
+                logo.style.transform = 'translateX(0)';
+                menuIconImg.src = "{{ url_for('static', filename='photos/opensbar.png') }}";   // Іконка відкриття
+            }
+        }
+
+        function toggleMiniMenu() {
+            const miniMenu = document.getElementById('miniMenu');
+            miniMenu.classList.toggle('show');
+        }
+
+            document.addEventListener('DOMContentLoaded', function() {
+        const submenuLinks = document.querySelectorAll('.submenu > a');
+
+        submenuLinks.forEach(function(link) {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                const parent = this.parentElement;
+                parent.classList.toggle('active');
+
+                // Закрити інші підменю
+                submenuLinks.forEach(function(otherLink) {
+                    if (otherLink !== link) {
+                        otherLink.parentElement.classList.remove('active');
+                    }
+                });
+            });
+        });
+    });
+    </script>
+</body>
+</html>

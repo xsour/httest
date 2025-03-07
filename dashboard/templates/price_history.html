@@ -1,0 +1,360 @@
+{% extends 'dashboard_base.html' %}
+
+{% block title %}Історія Цін{% endblock %}
+
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tables.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/modals.css') }}">
+    <script>
+        const userRole = "{{ session.get('role') }}";
+
+        function openModal(title, priceHistory = null) {
+            document.getElementById('modal-title').innerText = title;
+            const modal = document.getElementById('priceHistoryModal');
+            modal.style.display = 'block';
+
+            if (priceHistory) {
+                document.getElementById('id').value = priceHistory.id;
+                document.getElementById('product_id').value = priceHistory.product_id;
+                document.getElementById('trading_point_id').value = priceHistory.trading_point_id;
+                document.getElementById('price').value = priceHistory.price;
+                document.getElementById('start_date').value = priceHistory.start_date;
+                document.getElementById('end_date').value = priceHistory.end_date;
+                document.getElementById('product_id').disabled = true;
+                document.getElementById('trading_point_id').disabled = true;
+            } else {
+                document.getElementById('priceHistoryForm').reset();
+                document.getElementById('product_id').disabled = false;
+                document.getElementById('trading_point_id').disabled = false;
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('.close').forEach(element => {
+                element.onclick = function () {
+                    const modal = this.closest('.modal');
+                    if (modal) {
+                        modal.style.display = 'none';
+                    }
+                }
+            });
+
+            window.onclick = function (event) {
+                const modals = document.querySelectorAll('.modal');
+                modals.forEach(modal => {
+                    if (event.target == modal) {
+                        modal.style.display = 'none';
+                    }
+                });
+            }
+
+            const deleteButtons = document.querySelectorAll('.btn-danger');
+            deleteButtons.forEach(button => {
+                button.addEventListener('click', function () {
+                    const historyId = this.getAttribute('data-id');
+                    openDeleteConfirmModal(historyId);
+                });
+            });
+        });
+
+        function savePriceHistory(event) {
+            event.preventDefault();
+            const form = document.getElementById('priceHistoryForm');
+            const formData = new FormData(form);
+            const isEditing = document.getElementById('id').value !== '';
+            const url = isEditing ? "{{ url_for('dashboard.edit_price_history') }}" : "{{ url_for('dashboard.add_price_history') }}";
+
+            fetch(url, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                showFlashMessage(data.message, data.status);
+                if (data.status === 'success') {
+                    document.getElementById('priceHistoryModal').style.display = 'none';
+                    if (!isEditing) {
+                        addTableRow(data.price_history);
+                    } else {
+                        updateTableRow(data.price_history);
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Помилка:', error);
+                showFlashMessage('Сталася помилка при збереженні історії цін.', 'error');
+            });
+        }
+
+        function showFlashMessage(message, category) {
+            const flashMessages = document.getElementById('flash-messages');
+            const flashMessage = document.createElement('div');
+            flashMessage.className = `flash ${category}`;
+            flashMessage.innerText = message;
+            flashMessages.appendChild(flashMessage);
+
+            setTimeout(() => {
+                flashMessage.remove();
+            }, 5000);
+        }
+
+        function addTableRow(priceHistory) {
+            const tbody = document.querySelector('.table-container table tbody');
+            const tr = document.createElement('tr');
+
+            tr.innerHTML = `
+                <td>${priceHistory.id}</td>
+                <td>${priceHistory.product_name}</td>
+                <td>${priceHistory.trading_point_name}</td>
+                <td>${priceHistory.price}</td>
+                <td>${priceHistory.start_date}</td>
+                <td>${priceHistory.end_date || ''}</td>
+                <td style="display: flex; gap: 10px;">
+                    <a href="javascript:void(0);" onclick="openModal('Редагувати історію цін', {
+                        id: '${priceHistory.id}',
+                        product_id: '${priceHistory.product_id}',
+                        trading_point_id: '${priceHistory.trading_point_id}',
+                        price: '${priceHistory.price}',
+                        start_date: '${priceHistory.start_date}',
+                        end_date: '${priceHistory.end_date}'
+                    });" class="btn-success">Редагувати</a>
+                    ${['owner', 'admin'].includes(userRole) ?
+                    `<button type="button" class="btn-danger" data-id="${priceHistory.id}">Видалити</button>` : ''}
+                </td>
+            `;
+
+            if (['owner', 'admin'].includes(userRole)) {
+                const deleteButton = tr.querySelector('.btn-danger');
+                if (deleteButton) {
+                    deleteButton.addEventListener('click', function () {
+                        const historyId = this.getAttribute('data-id');
+                        openDeleteConfirmModal(historyId);
+                    });
+                }
+            }
+
+            tbody.appendChild(tr);
+        }
+
+        function updateTableRow(priceHistory) {
+            const rows = document.querySelectorAll('.table-container table tbody tr');
+            rows.forEach(row => {
+                const idCell = row.querySelector('td:first-child');
+                if (idCell && idCell.textContent == priceHistory.id) {
+                    row.innerHTML = `
+                        <td>${priceHistory.id}</td>
+                        <td>${priceHistory.product_name}</td>
+                        <td>${priceHistory.trading_point_name}</td>
+                        <td>${priceHistory.price}</td>
+                        <td>${priceHistory.start_date}</td>
+                        <td>${priceHistory.end_date || ''}</td>
+                        <td style="display: flex; gap: 10px;">
+                            <a href="javascript:void(0);" onclick="openModal('Редагувати історію цін', {
+                                id: '${priceHistory.id}',
+                                product_id: '${priceHistory.product_id}',
+                                trading_point_id: '${priceHistory.trading_point_id}',
+                                price: '${priceHistory.price}',
+                                start_date: '${priceHistory.start_date}',
+                                end_date: '${priceHistory.end_date}'
+                            });" class="btn-success">Редагувати</a>
+                            ${['owner', 'admin'].includes(userRole) ?
+                            `<button type="button" class="btn-danger" data-id="${priceHistory.id}">Видалити</button>` : ''}
+                        </td>
+                    `;
+
+                    if (['owner', 'admin'].includes(userRole)) {
+                        const deleteButton = row.querySelector('.btn-danger');
+                        if (deleteButton) {
+                            deleteButton.addEventListener('click', function () {
+                                const historyId = this.getAttribute('data-id');
+                                openDeleteConfirmModal(historyId);
+                            });
+                        }
+                    }
+                }
+            });
+        }
+
+        function openDeleteConfirmModal(historyId) {
+            const modal = document.getElementById('deleteConfirmModal');
+            modal.style.display = 'block';
+            document.getElementById('delete-history-id').value = historyId;
+        }
+
+        function closeDeleteConfirmModal() {
+            const modal = document.getElementById('deleteConfirmModal');
+            modal.style.display = 'none';
+            document.getElementById('delete-history-id').value = '';
+        }
+
+        function confirmDeletePriceHistory() {
+            const historyId = document.getElementById('delete-history-id').value;
+            if (!historyId) {
+                showFlashMessage('Не вказано ID запису для видалення.', 'error');
+                return;
+            }
+
+            fetch("{{ url_for('dashboard.delete_price_history') }}", {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: new URLSearchParams({
+                    'id': historyId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                showFlashMessage(data.message, data.status);
+                if (data.status === 'success') {
+                    const rows = document.querySelectorAll('.table-container table tbody tr');
+                    rows.forEach(row => {
+                        const idCell = row.querySelector('td:first-child');
+                        if (idCell && idCell.textContent == historyId) {
+                            row.remove();
+                        }
+                    });
+                    closeDeleteConfirmModal();
+                }
+            })
+            .catch(error => {
+                console.error('Помилка:', error);
+                showFlashMessage('Сталася помилка при видаленні запису.', 'error');
+                closeDeleteConfirmModal();
+            });
+        }
+    </script>
+{% endblock %}
+
+{% block content %}
+<h1>Історія Цін</h1>
+
+{% if session.get('role') in ['owner', 'admin'] %}
+    <a href="javascript:void(0);" onclick="openModal('Додати історію цін');" class="button">Додати новий запис</a>
+{% endif %}
+
+<form method="GET" action="{{ url_for('dashboard.price_history') }}" style="margin-top: 20px;">
+    <input type="text" name="search" placeholder="Пошук за продуктом або торговою точкою" value="{{ request.args.get('search', '') }}">
+    <button type="submit">Пошук</button>
+</form>
+
+<div class="table-container">
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Продукт</th>
+                <th>Торгова точка</th>
+                <th>Ціна</th>
+                <th>Дата початку</th>
+                <th>Дата завершення</th>
+                {% if session.get('role') in ['owner', 'admin', 'operator'] %}
+                    <th>Дії</th>
+                {% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for ph in price_histories %}
+            <tr>
+                <td>{{ ph[0] }}</td>
+                <td>{{ ph[1] }}</td>
+                <td>{{ ph[2] }}</td>
+                <td>{{ ph[3] }}</td>
+                <td>{{ ph[4].strftime('%Y-%m-%d') }}</td>
+                <td>{{ ph[5].strftime('%Y-%m-%d') if ph[5] else '' }}</td>
+
+                {% if session.get('role') in ['owner', 'admin', 'operator'] %}
+                <td style="display: flex; gap: 10px;">
+                    <a href="javascript:void(0);" onclick="openModal('Редагувати історію цін', {
+                        id: '{{ ph[0] }}',
+                        product_id: '{{ ph[1] }}',
+                        trading_point_id: '{{ ph[2] }}',
+                        price: '{{ ph[3] }}',
+                        start_date: '{{ ph[4].strftime('%Y-%m-%d') }}',
+                        end_date: '{{ ph[5].strftime('%Y-%m-%d') if ph[5] else '' }}'
+                    });" class="btn-success">Редагувати</a>
+
+                    {% if session.get('role') in ['owner', 'admin'] %}
+                    <button type="button" class="btn-danger" data-id="{{ ph[0] }}">Видалити</button>
+                    {% endif %}
+                </td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Контейнер для флеш-повідомлень -->
+<div id="flash-messages">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="flash {{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+</div>
+
+<!-- Модальне вікно для додавання/редагування історії цін -->
+<div id="priceHistoryModal" class="modal">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2 id="modal-title">Додати історію цін</h2>
+        <form id="priceHistoryForm" class="admin-form">
+            <input type="hidden" id="id" name="id">
+            <div class="form-group">
+                <label for="product_id">Продукт:</label>
+                <select id="product_id" name="product_id" required>
+                    <option value="">Виберіть продукт</option>
+                    {% for prod in products %}
+                        <option value="{{ prod[0] }}">{{ prod[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="trading_point_id">Торгова точка:</label>
+                <select id="trading_point_id" name="trading_point_id" required>
+                    <option value="">Виберіть торгову точку</option>
+                    {% for tp in trading_points %}
+                        <option value="{{ tp[0] }}">{{ tp[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="price">Ціна (грн):</label>
+                <input type="number" id="price" name="price" step="0.01" required>
+            </div>
+            <div class="form-group">
+                <label for="start_date">Дата початку:</label>
+                <input type="date" id="start_date" name="start_date" required>
+            </div>
+            <div class="form-group">
+                <label for="end_date">Дата завершення:</label>
+                <input type="date" id="end_date" name="end_date">
+            </div>
+            <button type="button" onclick="savePriceHistory(event)">Зберегти</button>
+        </form>
+    </div>
+</div>
+
+<!-- Модальне вікно для підтвердження видалення історії цін -->
+<div id="deleteConfirmModal" class="modal">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2>Підтвердження видалення</h2>
+        <p>Ви впевнені, що хочете видалити цей запис з історії цін?</p>
+        <form id="deleteForm" class="delete-form">
+            <input type="hidden" id="delete-history-id" name="id">
+            <div class="button-group">
+                <button type="button" class="btn-confirm" onclick="confirmDeletePriceHistory()">Так, видалити</button>
+                <button type="button" class="btn-cancel" onclick="closeDeleteConfirmModal()">Скасувати</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

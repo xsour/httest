@@ -1,0 +1,312 @@
+<!-- suppliers.html -->
+{% extends 'dashboard_base.html' %}
+
+{% block title %}Постачальники{% endblock %}
+
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tables.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/modals.css') }}">
+    <script>
+        const userRole = "{{ session.get('role') }}";
+
+        function openModal(title, supplier = null) {
+            document.getElementById('modal-title').innerText = title;
+            const modal = document.getElementById('supplierModal');
+            modal.style.display = 'block';
+
+            if (supplier) {
+                document.getElementById('id').value = supplier.id;
+                document.getElementById('name').value = supplier.name;
+                document.getElementById('contact_phone').value = supplier.contact_phone || '';
+            } else {
+                document.getElementById('supplierForm').reset();
+                document.getElementById('id').value = '';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('.close').forEach(element => {
+                element.onclick = function () {
+                    const modal = this.closest('.modal');
+                    if (modal) {
+                        modal.style.display = 'none';
+                    }
+                }
+            });
+
+            window.onclick = function (event) {
+                const modals = document.querySelectorAll('.modal');
+                modals.forEach(modal => {
+                    if (event.target == modal) {
+                        modal.style.display = 'none';
+                    }
+                });
+            }
+
+            const deleteButtons = document.querySelectorAll('.btn-danger');
+            deleteButtons.forEach(button => {
+                button.addEventListener('click', function () {
+                    const supplierId = this.getAttribute('data-id');
+                    openDeleteConfirmModal(supplierId);
+                });
+            });
+        });
+
+        function saveSupplier(event) {
+            event.preventDefault();
+            const form = document.getElementById('supplierForm');
+            const formData = new FormData(form);
+            const isEditing = document.getElementById('id').value !== '';
+            const url = isEditing ? "{{ url_for('dashboard.edit_supplier') }}" : "{{ url_for('dashboard.add_supplier') }}";
+
+            fetch(url, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                showFlashMessage(data.message, data.status);
+                if (data.status === 'success') {
+                    document.getElementById('supplierModal').style.display = 'none';
+                    if (!isEditing) {
+                        addTableRow(data.supplier);
+                    } else {
+                        updateTableRow(data.supplier);
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Помилка:', error);
+                showFlashMessage('Сталася помилка при збереженні постачальника.', 'error');
+            });
+        }
+
+        function showFlashMessage(message, category) {
+            const flashMessages = document.getElementById('flash-messages');
+            const flashMessage = document.createElement('div');
+            flashMessage.className = `flash ${category}`;
+            flashMessage.innerText = message;
+            flashMessages.appendChild(flashMessage);
+
+            setTimeout(() => {
+                flashMessage.remove();
+            }, 5000);
+        }
+
+        function addTableRow(supplier) {
+            const tbody = document.querySelector('.table-container table tbody');
+            const tr = document.createElement('tr');
+
+            tr.innerHTML = `
+                <td>${supplier.id}</td>
+                <td>${supplier.name}</td>
+                <td>${supplier.contact_phone || ''}</td>
+                <td style="display: flex; gap: 10px;">
+                    <a href="javascript:void(0);" onclick="openModal('Редагувати постачальника', {
+                        id: '${supplier.id}',
+                        name: '${supplier.name}',
+                        contact_phone: '${supplier.contact_phone || ''}'
+                    });" class="btn-success">Редагувати</a>
+                    ${['owner', 'admin'].includes(userRole) ?
+                    `<button type="button" class="btn-danger" data-id="${supplier.id}">Видалити</button>` : ''}
+                </td>
+            `;
+
+            if (['owner', 'admin'].includes(userRole)) {
+                const deleteButton = tr.querySelector('.btn-danger');
+                if (deleteButton) {
+                    deleteButton.addEventListener('click', function () {
+                        const supplierId = this.getAttribute('data-id');
+                        openDeleteConfirmModal(supplierId);
+                    });
+                }
+            }
+
+            tbody.appendChild(tr);
+        }
+
+        function updateTableRow(supplier) {
+            const rows = document.querySelectorAll('.table-container table tbody tr');
+            rows.forEach(row => {
+                const idCell = row.querySelector('td:first-child');
+                if (idCell && idCell.textContent == supplier.id) {
+                    row.innerHTML = `
+                        <td>${supplier.id}</td>
+                        <td>${supplier.name}</td>
+                        <td>${supplier.contact_phone || ''}</td>
+                        <td style="display: flex; gap: 10px;">
+                            <a href="javascript:void(0);" onclick="openModal('Редагувати постачальника', {
+                                id: '${supplier.id}',
+                                name: '${supplier.name}',
+                                contact_phone: '${supplier.contact_phone || ''}'
+                            });" class="btn-success">Редагувати</a>
+                            ${['owner', 'admin'].includes(userRole) ?
+                            `<button type="button" class="btn-danger" data-id="${supplier.id}">Видалити</button>` : ''}
+                        </td>
+                    `;
+
+                    if (['owner', 'admin'].includes(userRole)) {
+                        const deleteButton = row.querySelector('.btn-danger');
+                        if (deleteButton) {
+                            deleteButton.addEventListener('click', function () {
+                                const supplierId = this.getAttribute('data-id');
+                                openDeleteConfirmModal(supplierId);
+                            });
+                        }
+                    }
+                }
+            });
+        }
+
+        function openDeleteConfirmModal(supplierId) {
+            const modal = document.getElementById('deleteConfirmModal');
+            modal.style.display = 'block';
+            document.getElementById('delete-supplier-id').value = supplierId;
+        }
+
+        function closeDeleteConfirmModal() {
+            const modal = document.getElementById('deleteConfirmModal');
+            modal.style.display = 'none';
+            document.getElementById('delete-supplier-id').value = '';
+        }
+
+        function confirmDeleteSupplier() {
+            const supplierId = document.getElementById('delete-supplier-id').value;
+            if (!supplierId) {
+                showFlashMessage('Не вказано ID постачальника для видалення.', 'error');
+                return;
+            }
+
+            fetch("{{ url_for('dashboard.delete_supplier') }}", {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: new URLSearchParams({
+                    'id': supplierId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                showFlashMessage(data.message, data.status);
+                if (data.status === 'success') {
+                    const rows = document.querySelectorAll('.table-container table tbody tr');
+                    rows.forEach(row => {
+                        const idCell = row.querySelector('td:first-child');
+                        if (idCell && idCell.textContent == supplierId) {
+                            row.remove();
+                        }
+                    });
+                    closeDeleteConfirmModal();
+                }
+            })
+            .catch(error => {
+                console.error('Помилка:', error);
+                showFlashMessage('Сталася помилка при видаленні постачальника.', 'error');
+                closeDeleteConfirmModal();
+            });
+        }
+    </script>
+{% endblock %}
+
+{% block content %}
+<h1>Список постачальників</h1>
+
+{% if session.get('role') in ['owner', 'admin'] %}
+    <a href="javascript:void(0);" onclick="openModal('Додати постачальника');" class="button">Додати нового постачальника</a>
+{% endif %}
+
+<form method="GET" action="{{ url_for('dashboard.suppliers') }}" style="margin-top: 20px;">
+    <input type="text" name="search" placeholder="Пошук постачальників" value="{{ request.args.get('search', '') }}">
+    <button type="submit">Пошук</button>
+</form>
+
+<div class="table-container">
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Назва</th>
+                <th>Контактний телефон</th>
+                {% if session.get('role') in ['owner', 'admin', 'operator'] %}
+                    <th>Дії</th>
+                {% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for sup in suppliers %}
+            <tr>
+                <td>{{ sup[0] }}</td>
+                <td>{{ sup[1] }}</td>
+                <td>{{ sup[2] or '' }}</td>
+
+                {% if session.get('role') in ['owner', 'admin', 'operator'] %}
+                <td style="display: flex; gap: 10px;">
+                    <a href="javascript:void(0);" onclick="openModal('Редагувати постачальника', {
+                        id: '{{ sup[0] }}',
+                        name: '{{ sup[1] }}',
+                        contact_phone: '{{ sup[2] or '' }}'
+                    });" class="btn-success">Редагувати</a>
+
+                    {% if session.get('role') in ['owner', 'admin'] %}
+                    <button type="button" class="btn-danger" data-id="{{ sup[0] }}">Видалити</button>
+                    {% endif %}
+                </td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Контейнер для флеш-повідомлень -->
+<div id="flash-messages">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="flash {{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+</div>
+
+<!-- Модальне вікно для додавання/редагування постачальника -->
+<div id="supplierModal" class="modal">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2 id="modal-title">Додати постачальника</h2>
+        <form id="supplierForm" class="admin-form">
+            <input type="hidden" id="id" name="id">
+            <div class="form-group">
+                <label for="name">Назва:</label>
+                <input type="text" id="name" name="name" required>
+            </div>
+            <div class="form-group">
+                <label for="contact_phone">Контактний телефон:</label>
+                <input type="text" id="contact_phone" name="contact_phone">
+            </div>
+            <button type="button" onclick="saveSupplier(event)">Зберегти</button>
+        </form>
+    </div>
+</div>
+
+<!-- Модальне вікно для підтвердження видалення постачальника -->
+<div id="deleteConfirmModal" class="modal">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2>Підтвердження видалення</h2>
+        <p>Ви впевнені, що хочете видалити цього постачальника?</p>
+        <form id="deleteForm" class="delete-form">
+            <input type="hidden" id="delete-supplier-id" name="id">
+            <div class="button-group">
+                <button type="button" class="btn-confirm" onclick="confirmDeleteSupplier()">Так, видалити</button>
+                <button type="button" class="btn-cancel" onclick="closeDeleteConfirmModal()">Скасувати</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,39 @@
+{% extends 'dashboard_base.html' %}
+
+{% block title %}Асортимент і обсяг товарів{% endblock %}
+
+{% block content %}
+<h1>Асортимент і обсяг товарів</h1>
+
+<form method="POST">
+    <label for="trading_point_id">Торгова точка:</label>
+    <select name="trading_point_id" id="trading_point_id" required>
+        {% for tp in trading_points %}
+            <option value="{{ tp[0] }}">{{ tp[1] }}</option>
+        {% endfor %}
+    </select>
+
+    <button type="submit">Пошук</button>
+</form>
+
+{% if inventory %}
+    <table>
+        <thead>
+            <tr>
+                <th>Товар</th>
+                <th>Кількість</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in inventory %}
+                <tr>
+                    <td>{{ item[0] }}</td>
+                    <td>{{ item[1] }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <p>Немає даних для відображення.</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,365 @@
+{% extends 'dashboard_base.html' %}
+
+{% block title %}Замовлення{% endblock %}
+
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tables.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/modals.css') }}">
+    <script>
+        const userRole = "{{ session.get('role') }}";
+
+        function openModal(title, order = null) {
+            document.getElementById('modal-title').innerText = title;
+            const modal = document.getElementById('orderModal');
+            modal.style.display = 'block';
+
+            if (order) {
+                document.getElementById('id').value = order.id;
+                document.getElementById('supplier_id').value = order.supplier_id;
+                document.getElementById('trading_point_id').value = order.trading_point_id;
+                document.getElementById('manager_id').value = order.manager_id || '';
+                document.getElementById('order_date').value = order.order_date;
+                document.getElementById('status').value = order.status;
+            } else {
+                document.getElementById('orderForm').reset();
+                document.getElementById('id').value = '';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('.close').forEach(element => {
+                element.onclick = function () {
+                    const modal = this.closest('.modal');
+                    if (modal) {
+                        modal.style.display = 'none';
+                    }
+                }
+            });
+
+            window.onclick = function (event) {
+                const modals = document.querySelectorAll('.modal');
+                modals.forEach(modal => {
+                    if (event.target == modal) {
+                        modal.style.display = 'none';
+                    }
+                });
+            }
+
+            const deleteButtons = document.querySelectorAll('.btn-danger');
+            deleteButtons.forEach(button => {
+                button.addEventListener('click', function () {
+                    const orderId = this.getAttribute('data-id');
+                    openDeleteConfirmModal(orderId);
+                });
+            });
+        });
+
+        function saveOrder(event) {
+            event.preventDefault();
+            const form = document.getElementById('orderForm');
+            const formData = new FormData(form);
+            const isEditing = document.getElementById('id').value !== '';
+            const url = isEditing ? "{{ url_for('dashboard.edit_order') }}" : "{{ url_for('dashboard.add_order') }}";
+
+            fetch(url, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                showFlashMessage(data.message, data.status);
+                if (data.status === 'success') {
+                    document.getElementById('orderModal').style.display = 'none';
+                    if (!isEditing) {
+                        addTableRow(data.order);
+                    } else {
+                        updateTableRow(data.order);
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Помилка:', error);
+                showFlashMessage('Сталася помилка при збереженні замовлення.', 'error');
+            });
+        }
+
+        function showFlashMessage(message, category) {
+            const flashMessages = document.getElementById('flash-messages');
+            const flashMessage = document.createElement('div');
+            flashMessage.className = `flash ${category}`;
+            flashMessage.innerText = message;
+            flashMessages.appendChild(flashMessage);
+
+            setTimeout(() => {
+                flashMessage.remove();
+            }, 5000);
+        }
+
+        function addTableRow(order) {
+            const tbody = document.querySelector('.table-container table tbody');
+            const tr = document.createElement('tr');
+
+            tr.innerHTML = `
+                <td>${order.id}</td>
+                <td>${order.supplier_name}</td>
+                <td>${order.trading_point_name}</td>
+                <td>${order.manager_first_name}</td>
+                <td>${order.order_date}</td>
+                <td>${order.status}</td>
+                <td style="display: flex; gap: 10px;">
+                    <a href="javascript:void(0);" onclick="openModal('Редагувати замовлення', {
+                        id: '${order.id}',
+                        supplier_id: '${order.supplier_id}',
+                        trading_point_id: '${order.trading_point_id}',
+                        manager_id: '${order.manager_id}',
+                        order_date: '${order.order_date}',
+                        status: '${order.status}'
+                    });" class="btn-success">Редагувати</a>
+                    ${['owner', 'admin'].includes(userRole) ?
+                    `<button type="button" class="btn-danger" data-id="${order.id}">Видалити</button>` : ''}
+                </td>
+            `;
+
+            if (['owner', 'admin'].includes(userRole)) {
+                const deleteButton = tr.querySelector('.btn-danger');
+                if (deleteButton) {
+                    deleteButton.addEventListener('click', function () {
+                        const orderId = this.getAttribute('data-id');
+                        openDeleteConfirmModal(orderId);
+                    });
+                }
+            }
+
+            tbody.appendChild(tr);
+        }
+
+        function updateTableRow(order) {
+            const rows = document.querySelectorAll('.table-container table tbody tr');
+            rows.forEach(row => {
+                const idCell = row.querySelector('td:first-child');
+                if (idCell && idCell.textContent == order.id) {
+                    row.innerHTML = `
+                        <td>${order.id}</td>
+                        <td>${order.supplier_name}</td>
+                        <td>${order.trading_point_name}</td>
+                        <td>${order.manager_first_name}</td>
+                        <td>${order.order_date}</td>
+                        <td>${order.status}</td>
+                        <td style="display: flex; gap: 10px;">
+                            <a href="javascript:void(0);" onclick="openModal('Редагувати замовлення', {
+                                id: '${order.id}',
+                                supplier_id: '${order.supplier_id}',
+                                trading_point_id: '${order.trading_point_id}',
+                                manager_id: '${order.manager_id}',
+                                order_date: '${order.order_date}',
+                                status: '${order.status}'
+                            });" class="btn-success">Редагувати</a>
+                            ${['owner', 'admin'].includes(userRole) ?
+                            `<button type="button" class="btn-danger" data-id="${order.id}">Видалити</button>` : ''}
+                        </td>
+                    `;
+
+                    if (['owner', 'admin'].includes(userRole)) {
+                        const deleteButton = row.querySelector('.btn-danger');
+                        if (deleteButton) {
+                            deleteButton.addEventListener('click', function () {
+                                const orderId = this.getAttribute('data-id');
+                                openDeleteConfirmModal(orderId);
+                            });
+                        }
+                    }
+                }
+            });
+        }
+
+        function openDeleteConfirmModal(orderId) {
+            const modal = document.getElementById('deleteConfirmModal');
+            modal.style.display = 'block';
+            document.getElementById('delete-order-id').value = orderId;
+        }
+
+        function closeDeleteConfirmModal() {
+            const modal = document.getElementById('deleteConfirmModal');
+            modal.style.display = 'none';
+            document.getElementById('delete-order-id').value = '';
+        }
+
+        function confirmDeleteOrder() {
+            const orderId = document.getElementById('delete-order-id').value;
+            if (!orderId) {
+                showFlashMessage('Не вказано ID замовлення для видалення.', 'error');
+                return;
+            }
+
+            fetch("{{ url_for('dashboard.delete_order') }}", {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: new URLSearchParams({
+                    'id': orderId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                showFlashMessage(data.message, data.status);
+                if (data.status === 'success') {
+                    const rows = document.querySelectorAll('.table-container table tbody tr');
+                    rows.forEach(row => {
+                        const idCell = row.querySelector('td:first-child');
+                        if (idCell && idCell.textContent == orderId) {
+                            row.remove();
+                        }
+                    });
+                    closeDeleteConfirmModal();
+                }
+            })
+            .catch(error => {
+                console.error('Помилка:', error);
+                showFlashMessage('Сталася помилка при видаленні замовлення.', 'error');
+                closeDeleteConfirmModal();
+            });
+        }
+    </script>
+{% endblock %}
+
+{% block content %}
+<h1>Список замовлень</h1>
+
+{% if session.get('role') in ['owner', 'admin'] %}
+    <a href="javascript:void(0);" onclick="openModal('Додати замовлення');" class="button">Додати нове замовлення</a>
+{% endif %}
+
+<form method="GET" action="{{ url_for('dashboard.orders') }}" style="margin-top: 20px;">
+    <input type="text" name="search" placeholder="Пошук замовлень" value="{{ request.args.get('search', '') }}">
+    <button type="submit">Пошук</button>
+</form>
+
+<div class="table-container">
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Постачальник</th>
+                <th>Торгова точка</th>
+                <th>Менеджер</th>
+                <th>Дата замовлення</th>
+                <th>Статус</th>
+                {% if session.get('role') in ['owner', 'admin', 'operator'] %}
+                    <th>Дії</th>
+                {% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for order in orders %}
+            <tr>
+                <td>{{ order[0] }}</td>
+                <td>{{ order[1] }}</td>
+                <td>{{ order[2] }}</td>
+                <td>{{ order[3] or '' }}</td>
+                <td>{{ order[4] }}</td>
+                <td>{{ order[5] }}</td>
+
+                {% if session.get('role') in ['owner', 'admin', 'operator'] %}
+                <td style="display: flex; gap: 10px;">
+                    <a href="javascript:void(0);" onclick="openModal('Редагувати замовлення', {
+                        id: '{{ order[0] }}',
+                        supplier_id: '{{ order[1] }}',
+                        trading_point_id: '{{ order[2] }}',
+                        manager_id: '{{ order[3] or '' }}',
+                        order_date: '{{ order[4] }}',
+                        status: '{{ order[5] }}'
+                    });" class="btn-success">Редагувати</a>
+
+                    {% if session.get('role') in ['owner', 'admin'] %}
+                    <button type="button" class="btn-danger" data-id="{{ order[0] }}">Видалити</button>
+                    {% endif %}
+                </td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Контейнер для флеш-повідомлень -->
+<div id="flash-messages">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="flash {{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+</div>
+
+<!-- Модальне вікно для додавання/редагування замовлення -->
+<div id="orderModal" class="modal">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2 id="modal-title">Додати замовлення</h2>
+        <form id="orderForm" class="admin-form">
+            <input type="hidden" id="id" name="id">
+            <div class="form-group">
+                <label for="supplier_id">Постачальник:</label>
+                <select id="supplier_id" name="supplier_id" required>
+                    <option value="">Виберіть постачальника</option>
+                    {% for sup in suppliers %}
+                        <option value="{{ sup[0] }}">{{ sup[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="trading_point_id">Торгова точка:</label>
+                <select id="trading_point_id" name="trading_point_id" required>
+                    <option value="">Виберіть торгову точку</option>
+                    {% for tp in trading_points %}
+                        <option value="{{ tp[0] }}">{{ tp[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="manager_id">Менеджер:</label>
+                <select id="manager_id" name="manager_id">
+                    <option value="">Без менеджера</option>
+                    {% for emp in employees %}
+                        <option value="{{ emp[0] }}">{{ emp[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="order_date">Дата замовлення:</label>
+                <input type="date" id="order_date" name="order_date" required>
+            </div>
+            <div class="form-group">
+                <label for="status">Статус:</label>
+                <select id="status" name="status" required>
+                    <option value="В очікуванні">В очікуванні</option>
+                    <option value="Виконано">Виконано</option>
+                </select>
+            </div>
+            <button type="button" onclick="saveOrder(event)">Зберегти</button>
+        </form>
+    </div>
+</div>
+
+<!-- Модальне вікно для підтвердження видалення замовлення -->
+<div id="deleteConfirmModal" class="modal">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2>Підтвердження видалення</h2>
+        <p>Ви впевнені, що хочете видалити це замовлення?</p>
+        <form id="deleteForm" class="delete-form">
+            <input type="hidden" id="delete-order-id" name="id">
+            <div class="button-group">
+                <button type="button" class="btn-confirm" onclick="confirmDeleteOrder()">Так, видалити</button>
+                <button type="button" class="btn-cancel" onclick="closeDeleteConfirmModal()">Скасувати</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

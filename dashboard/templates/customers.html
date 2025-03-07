@@ -1,0 +1,351 @@
+{% extends 'dashboard_base.html' %}
+
+{% block title %}Покупці{% endblock %}
+
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tables.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/modals.css') }}">
+    <script>
+        const userRole = "{{ session.get('role') }}";
+
+        function openModal(title, customer = null) {
+            document.getElementById('modal-title').innerText = title;
+            const modal = document.getElementById('customerModal');
+            modal.style.display = 'block';
+
+            if (customer) {
+                document.getElementById('id').value = customer.id;
+                document.getElementById('first_name').value = customer.first_name;
+                document.getElementById('last_name').value = customer.last_name;
+                document.getElementById('phone').value = customer.phone || '';
+                document.getElementById('age').value = customer.age || '';
+                document.getElementById('gender').value = customer.gender || '';
+            } else {
+                document.getElementById('customerForm').reset();
+                document.getElementById('id').value = '';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('.close').forEach(element => {
+                element.onclick = function () {
+                    const modal = this.closest('.modal');
+                    if (modal) {
+                        modal.style.display = 'none';
+                    }
+                }
+            });
+
+            window.onclick = function (event) {
+                const modals = document.querySelectorAll('.modal');
+                modals.forEach(modal => {
+                    if (event.target == modal) {
+                        modal.style.display = 'none';
+                    }
+                });
+            }
+
+            const deleteButtons = document.querySelectorAll('.btn-danger');
+            deleteButtons.forEach(button => {
+                button.addEventListener('click', function () {
+                    const customerId = this.getAttribute('data-id');
+                    openDeleteConfirmModal(customerId);
+                });
+            });
+        });
+
+        function saveCustomer(event) {
+            event.preventDefault();
+            const form = document.getElementById('customerForm');
+            const formData = new FormData(form);
+            const isEditing = document.getElementById('id').value !== '';
+            const url = isEditing ? "{{ url_for('dashboard.edit_customer') }}" : "{{ url_for('dashboard.add_customer') }}";
+
+            fetch(url, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                showFlashMessage(data.message, data.status);
+                if (data.status === 'success') {
+                    document.getElementById('customerModal').style.display = 'none';
+                    if (!isEditing) {
+                        addTableRow(data.customer);
+                    } else {
+                        updateTableRow(data.customer);
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Помилка:', error);
+                showFlashMessage('Сталася помилка при збереженні покупця.', 'error');
+            });
+        }
+
+        function showFlashMessage(message, category) {
+            const flashMessages = document.getElementById('flash-messages');
+            const flashMessage = document.createElement('div');
+            flashMessage.className = `flash ${category}`;
+            flashMessage.innerText = message;
+            flashMessages.appendChild(flashMessage);
+
+            setTimeout(() => {
+                flashMessage.remove();
+            }, 5000);
+        }
+
+        function addTableRow(customer) {
+            const tbody = document.querySelector('.table-container table tbody');
+            const tr = document.createElement('tr');
+
+            tr.innerHTML = `
+                <td>${customer.id}</td>
+                <td>${customer.first_name}</td>
+                <td>${customer.last_name}</td>
+                <td>${customer.phone || ''}</td>
+                <td>${customer.age || ''}</td>
+                <td>${customer.gender || ''}</td>
+                <td style="display: flex; gap: 10px;">
+                    <a href="javascript:void(0);" onclick="openModal('Редагувати покупця', {
+                        id: '${customer.id}',
+                        first_name: '${customer.first_name.replace(/'/g, "\\'")}',
+                        last_name: '${customer.last_name.replace(/'/g, "\\'")}',
+                        phone: '${(customer.phone || '').replace(/'/g, "\\'")}',
+                        age: '${customer.age || ''}',
+                        gender: '${customer.gender || ''}'
+                    });" class="btn-success">Редагувати</a>
+                    ${['owner', 'admin'].includes(userRole) ?
+                    `<button type="button" class="btn-danger" data-id="${customer.id}">Видалити</button>` : ''}
+                </td>
+            `;
+
+            if (['owner', 'admin'].includes(userRole)) {
+                const deleteButton = tr.querySelector('.btn-danger');
+                if (deleteButton) {
+                    deleteButton.addEventListener('click', function () {
+                        const customerId = this.getAttribute('data-id');
+                        openDeleteConfirmModal(customerId);
+                    });
+                }
+            }
+
+            tbody.appendChild(tr);
+        }
+
+        function updateTableRow(customer) {
+            const rows = document.querySelectorAll('.table-container table tbody tr');
+            rows.forEach(row => {
+                const idCell = row.querySelector('td:first-child');
+                if (idCell && idCell.textContent == customer.id) {
+                    row.innerHTML = `
+                        <td>${customer.id}</td>
+                        <td>${customer.first_name}</td>
+                        <td>${customer.last_name}</td>
+                        <td>${customer.phone || ''}</td>
+                        <td>${customer.age || ''}</td>
+                        <td>${customer.gender || ''}</td>
+                        <td style="display: flex; gap: 10px;">
+                            <a href="javascript:void(0);" onclick="openModal('Редагувати покупця', {
+                                id: '${customer.id}',
+                                first_name: '${customer.first_name.replace(/'/g, "\\'")}',
+                                last_name: '${customer.last_name.replace(/'/g, "\\'")}',
+                                phone: '${(customer.phone || '').replace(/'/g, "\\'")}',
+                                age: '${customer.age || ''}',
+                                gender: '${customer.gender || ''}'
+                            });" class="btn-success">Редагувати</a>
+                            ${['owner', 'admin'].includes(userRole) ?
+                            `<button type="button" class="btn-danger" data-id="${customer.id}">Видалити</button>` : ''}
+                        </td>
+                    `;
+
+                    if (['owner', 'admin'].includes(userRole)) {
+                        const deleteButton = row.querySelector('.btn-danger');
+                        if (deleteButton) {
+                            deleteButton.addEventListener('click', function () {
+                                const customerId = this.getAttribute('data-id');
+                                openDeleteConfirmModal(customerId);
+                            });
+                        }
+                    }
+                }
+            });
+        }
+
+        function openDeleteConfirmModal(customerId) {
+            const modal = document.getElementById('deleteConfirmModal');
+            modal.style.display = 'block';
+            document.getElementById('delete-customer-id').value = customerId;
+        }
+
+        function closeDeleteConfirmModal() {
+            const modal = document.getElementById('deleteConfirmModal');
+            modal.style.display = 'none';
+            document.getElementById('delete-customer-id').value = '';
+        }
+
+        function confirmDeleteCustomer() {
+            const customerId = document.getElementById('delete-customer-id').value;
+            if (!customerId) {
+                showFlashMessage('Не вказано ID покупця для видалення.', 'error');
+                return;
+            }
+
+            fetch("{{ url_for('dashboard.delete_customer') }}", {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: new URLSearchParams({
+                    'id': customerId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                showFlashMessage(data.message, data.status);
+                if (data.status === 'success') {
+                    const rows = document.querySelectorAll('.table-container table tbody tr');
+                    rows.forEach(row => {
+                        const idCell = row.querySelector('td:first-child');
+                        if (idCell && idCell.textContent == customerId) {
+                            row.remove();
+                        }
+                    });
+                    closeDeleteConfirmModal();
+                }
+            })
+            .catch(error => {
+                console.error('Помилка:', error);
+                showFlashMessage('Сталася помилка при видаленні покупця.', 'error');
+                closeDeleteConfirmModal();
+            });
+        }
+    </script>
+{% endblock %}
+
+{% block content %}
+<h1>Список покупців</h1>
+
+{% if session.get('role') in ['owner', 'admin'] %}
+    <a href="javascript:void(0);" onclick="openModal('Додати покупця');" class="button">Додати нового покупця</a>
+{% endif %}
+
+<form method="GET" action="{{ url_for('dashboard.customers') }}" style="margin-top: 20px;">
+    <input type="text" name="search" placeholder="Пошук покупців" value="{{ request.args.get('search', '') }}">
+    <button type="submit">Пошук</button>
+</form>
+
+<div class="table-container">
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Ім'я</th>
+                <th>Прізвище</th>
+                <th>Телефон</th>
+                <th>Вік</th>
+                <th>Стать</th>
+                {% if session.get('role') in ['owner', 'admin', 'operator'] %}
+                    <th>Дії</th>
+                {% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for cust in customers %}
+            <tr>
+                <td>{{ cust[0] }}</td>
+                <td>{{ cust[1] }}</td>
+                <td>{{ cust[2] }}</td>
+                <td>{{ cust[3] or '' }}</td>
+                <td>{{ cust[4] or '' }}</td>
+                <td>{{ cust[5] or '' }}</td>
+
+                {% if session.get('role') in ['owner', 'admin', 'operator'] %}
+                <td style="display: flex; gap: 10px;">
+                    <a href="javascript:void(0);" onclick="openModal('Редагувати покупця', {
+                        id: '{{ cust[0] }}',
+                        first_name: '{{ cust[1] }}',
+                        last_name: '{{ cust[2] }}',
+                        phone: '{{ cust[3] or '' }}',
+                        age: '{{ cust[4] or '' }}',
+                        gender: '{{ cust[5] or '' }}'
+                    });" class="btn-success">Редагувати</a>
+
+                    {% if session.get('role') in ['owner', 'admin'] %}
+                    <button type="button" class="btn-danger" data-id="{{ cust[0] }}">Видалити</button>
+                    {% endif %}
+                </td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Контейнер для флеш-повідомлень -->
+<div id="flash-messages">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="flash {{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+</div>
+
+<!-- Модальне вікно для додавання/редагування покупця -->
+<div id="customerModal" class="modal">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2 id="modal-title">Додати покупця</h2>
+        <form id="customerForm" class="admin-form">
+            <input type="hidden" id="id" name="id">
+            <div class="form-group">
+                <label for="first_name">Ім'я:</label>
+                <input type="text" id="first_name" name="first_name" required>
+            </div>
+            <div class="form-group">
+                <label for="last_name">Прізвище:</label>
+                <input type="text" id="last_name" name="last_name" required>
+            </div>
+            <div class="form-group">
+                <label for="phone">Телефон:</label>
+                <input type="text" id="phone" name="phone">
+            </div>
+            <div class="form-group">
+                <label for="age">Вік:</label>
+                <input type="number" id="age" name="age" min="0">
+            </div>
+            <div class="form-group">
+                <label for="gender">Стать:</label>
+                <select id="gender" name="gender">
+                    <option value="">Виберіть стать</option>
+                    <option value="Чоловік">Чоловік</option>
+                    <option value="Жінка">Жінка</option>
+                </select>
+            </div>
+            <button type="button" onclick="saveCustomer(event)">Зберегти</button>
+        </form>
+    </div>
+</div>
+
+<!-- Модальне вікно для підтвердження видалення покупця -->
+<div id="deleteConfirmModal" class="modal">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2>Підтвердження видалення</h2>
+        <p>Ви впевнені, що хочете видалити цього покупця?</p>
+        <form id="deleteForm" class="delete-form">
+            <input type="hidden" id="delete-customer-id" name="id">
+            <div class="button-group">
+                <button type="button" class="btn-confirm" onclick="confirmDeleteCustomer()">Так, видалити</button>
+                <button type="button" class="btn-cancel" onclick="closeDeleteConfirmModal()">Скасувати</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

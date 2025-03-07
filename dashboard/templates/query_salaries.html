@@ -1,0 +1,54 @@
+{% extends 'dashboard_base.html' %}
+
+{% block title %}Зарплати співробітників{% endblock %}
+
+{% block content %}
+<h1>Зарплати співробітників</h1>
+
+<form method="POST">
+    <label for="type">Тип торгової точки:</label>
+    <select name="type" id="type">
+        <option value="">Всі</option>
+        {% for type in trading_point_types %}
+            <option value="{{ type[0] }}">{{ type[0] }}</option>
+        {% endfor %}
+    </select>
+
+    <label for="trading_point_id">Торгова точка:</label>
+    <select name="trading_point_id" id="trading_point_id">
+        <option value="">Всі</option>
+        {% for tp in trading_points %}
+            <option value="{{ tp[0] }}">{{ tp[1] }}</option>
+        {% endfor %}
+    </select>
+
+    <button type="submit">Пошук</button>
+</form>
+
+{% if salaries %}
+    <table>
+        <thead>
+            <tr>
+                <th>Ім'я</th>
+                <th>Прізвище</th>
+                <th>Посада</th>
+                <th>Зарплата</th>
+                <th>Торгова точка</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for salary in salaries %}
+                <tr>
+                    <td>{{ salary[0] }}</td>
+                    <td>{{ salary[1] }}</td>
+                    <td>{{ salary[2] }}</td>
+                    <td>{{ salary[3] }}</td>
+                    <td>{{ salary[4] }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <p>Немає даних для відображення.</p>
+{% endif %}
+{% endblock %}

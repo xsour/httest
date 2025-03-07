@@ -1,0 +1,63 @@
+{% extends 'dashboard_base.html' %}
+
+{% block title %}Обсяг продажу продукту{% endblock %}
+
+{% block content %}
+<h1>Обсяг продажу продукту</h1>
+
+<form method="POST">
+    <label for="product_id">Товар:</label>
+    <select name="product_id" id="product_id" required>
+        {% for product in products %}
+            <option value="{{ product[0] }}">{{ product[1] }}</option>
+        {% endfor %}
+    </select>
+
+    <label for="start_date">Дата початку:</label>
+    <input type="date" name="start_date" id="start_date" required>
+
+    <label for="end_date">Дата завершення:</label>
+    <input type="date" name="end_date" id="end_date" required>
+
+    <label for="type">Тип торгової точки:</label>
+    <select name="type" id="type">
+        <option value="">Всі</option>
+        <option value="Магазин">Магазин</option>
+        <option value="Універмаг">Універмаг</option>
+        <option value="Кіоск">Кіоск</option>
+    </select>
+
+    <label for="trading_point_id">Торгова точка:</label>
+    <select name="trading_point_id" id="trading_point_id">
+        <option value="">Всі</option>
+        {% for tp in trading_points %}
+            <option value="{{ tp[0] }}">{{ tp[1] }}</option>
+        {% endfor %}
+    </select>
+
+    <button type="submit">Пошук</button>
+</form>
+
+{% if sales %}
+    <table>
+        <thead>
+            <tr>
+                <th>Продукт</th>
+                <th>Обсяг продажу</th>
+                <th>Торгова точка</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for sale in sales %}
+                <tr>
+                    <td>{{ sale[0] }}</td>
+                    <td>{{ sale[1] }}</td>
+                    <td>{{ sale[2] }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <p>Немає даних для відображення.</p>
+{% endif %}
+{% endblock %}

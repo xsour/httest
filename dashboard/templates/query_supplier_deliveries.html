@@ -1,0 +1,67 @@
+{% extends 'dashboard_base.html' %}
+
+{% block title %}Поставки товару від постачальників{% endblock %}
+
+{% block content %}
+<h1>Поставки товару від постачальників</h1>
+
+<form method="POST">
+    <label for="supplier_id">Постачальник:</label>
+    <select name="supplier_id" id="supplier_id">
+        <option value="">Всі</option>
+        {% for supplier in suppliers %}
+            <option value="{{ supplier[0] }}">{{ supplier[1] }}</option>
+        {% endfor %}
+    </select>
+
+    <label for="product_id">Товар:</label>
+    <select name="product_id" id="product_id">
+        <option value="">Всі</option>
+        {% for product in products %}
+            <option value="{{ product[0] }}">{{ product[1] }}</option>
+        {% endfor %}
+    </select>
+
+    <label for="order_number">Номер замовлення:</label>
+    <input type="number" name="order_number" id="order_number" placeholder="Введіть номер замовлення">
+
+    <label for="start_date">Дата початку:</label>
+    <input type="date" name="start_date" id="start_date">
+
+    <label for="end_date">Дата закінчення:</label>
+    <input type="date" name="end_date" id="end_date">
+
+    <button type="submit">Пошук</button>
+</form>
+
+{% if deliveries %}
+    <table>
+        <thead>
+            <tr>
+                <th>ID товару</th>
+                <th>Номер замовлення</th>
+                <th>Постачальник</th>
+                <th>Товар</th>
+                <th>Кількість</th>
+                <th>Ціна за одиницю</th>
+                <th>Дата доставки</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for delivery in deliveries %}
+                <tr>
+                    <td>{{ delivery[0] }}</td>
+                    <td>{{ delivery[1] }}</td>
+                    <td>{{ delivery[2] }}</td>
+                    <td>{{ delivery[3] }}</td>
+                    <td>{{ delivery[4] }}</td>
+                    <td>{{ delivery[5] | round(2) }}</td>
+                    <td>{{ delivery[6] }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <p>Немає даних для відображення.</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,117 @@
+{% extends 'dashboard_base.html' %}
+
+{% block title %}Адмін панель{% endblock %}
+
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin_panel.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/modals.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="admin-panel-container">
+
+   <!-- Flash-повідомлення -->
+    <div id="flash-messages">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash {{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+    </div>
+
+    <h1>Адмін-панель</h1>
+
+    <!-- Секція для додавання користувача -->
+    <div class="admin-section">
+        <h2>Додати нового користувача</h2>
+        <form method="POST" action="{{ url_for('dashboard.admin_panel') }}" class="admin-form">
+            <div class="form-group">
+                <input type="text" id="login" name="login" required placeholder=" " autocomplete="off">
+                <label for="login">Логін</label>
+            </div>
+            <div class="form-group">
+                <input type="password" id="password" name="password" required placeholder=" " autocomplete="off">
+                <label for="password">Пароль</label>
+            </div>
+            <div class="form-group">
+                <select id="access_right" name="access_right" required>
+                    <option value="" disabled selected hidden>Виберіть роль</option>
+                    {% if session.get('role') == 'owner' %}
+                        <option value="admin">Адміністратор</option>
+                    {% endif %}
+                    <option value="operator">Оператор</option>
+                    <option value="guest">Гість</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Додати</button>
+        </form>
+    </div>
+
+    {% if session.get('role') == 'owner' %}
+        <!-- Роздільник -->
+        <hr class="section-divider">
+
+        <!-- Секція для списку користувачів -->
+        <div class="admin-section">
+            <h2>Список користувачів</h2>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Логін</th>
+                            <th>Пароль</th>
+                            <th>Роль</th>
+                            <th>Дії</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in users %}
+                        <tr>
+                            <td>{{ user[0] }}</td>
+                            <td>{{ user[1] }}</td>
+                            <td>{{ user[2] }}</td>
+                            <td>{{ user[3] }}</td>
+                            <td>
+                                {% if user[1] != session.get('user') %}
+                                    <form action="{{ url_for('dashboard.delete_user', user_id=user[0]) }}" method="POST" class="delete-form">
+                                        <button type="submit" class="btn btn-danger" onclick="return confirm('Ви впевнені, що хочете видалити цього користувача?');">Видалити</button>
+                                    </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Роздільник -->
+        <hr class="section-divider">
+
+        <!-- Секція для керування таблицями -->
+        <div class="admin-section">
+            <h2>Керування таблицями</h2>
+
+            <!-- Форма для видалення таблиці -->
+            <div class="sub-section">
+                <h3>Видалити таблицю</h3>
+                <form method="POST" action="{{ url_for('dashboard.delete_table') }}" class="admin-form">
+                    <div class="form-group">
+                        <input type="text" id="delete_table_name" name="delete_table_name" required placeholder=" " autocomplete="off">
+                        <label for="delete_table_name" class="static-label">Назва таблиці для видалення</label>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Видалити таблицю</button>
+                </form>
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+</script>
+{% endblock %}

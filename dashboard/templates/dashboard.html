@@ -1,0 +1,25 @@
+{% extends 'dashboard_base.html' %}
+
+{% block title %}Головна{% endblock %}
+
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/home.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-pQ2zYbNfp6c3VknY69t8R3He5qL6I+JilWkzLgkFlD6dM0h8Rw5hLLp+P6F5T8FFIj3+5eDkkXdLk6qknKnrw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+{% endblock %}
+
+{% block content %}
+<div class="home-container">
+
+    <section class="hero-section">
+        <div class="hero-content">
+            <h1>Панель Керування інформаційною системою - Starсourt Mall</h1>
+            <h2>Ласкаво просимо, {{ username | string }}!</h2>
+            <p>Щоб перейти до таблиці, яка вас цікавить - відкрийте ліве бокове меню, натиснувши на кнопку "Відкрити меню", або іконку у лівому верхньому куті.</p>
+            <a href="javascript:void(0);" class="cta-button" onclick="toggleSidebar()">Відкрити меню</a>
+        </div>
+    </section>
+
+
+</div>
+{% endblock %}

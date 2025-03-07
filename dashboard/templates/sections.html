@@ -1,0 +1,345 @@
+{% extends 'dashboard_base.html' %}
+
+{% block title %}Секції{% endblock %}
+
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tables.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/modals.css') }}">
+    <script>
+        const userRole = "{{ session.get('role') }}";
+
+        function openModal(title, section = null) {
+            document.getElementById('modal-title').innerText = title;
+            const modal = document.getElementById('sectionModal');
+            modal.style.display = 'block';
+
+            if (section) {
+                document.getElementById('id').value = section.id;
+                document.getElementById('name').value = section.name;
+                document.getElementById('floor').value = section.floor;
+                document.getElementById('manager_id').value = section.manager_id || '';
+                document.getElementById('trading_point_id').value = section.trading_point_id;
+            } else {
+                document.getElementById('sectionForm').reset();
+                document.getElementById('id').value = '';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('.close').forEach(element => {
+                element.onclick = function () {
+                    const modal = this.closest('.modal');
+                    if (modal) {
+                        modal.style.display = 'none';
+                    }
+                }
+            });
+
+            window.onclick = function (event) {
+                const modals = document.querySelectorAll('.modal');
+                modals.forEach(modal => {
+                    if (event.target == modal) {
+                        modal.style.display = 'none';
+                    }
+                });
+            }
+
+            const deleteButtons = document.querySelectorAll('.btn-danger');
+            deleteButtons.forEach(button => {
+                button.addEventListener('click', function () {
+                    const sectionId = this.getAttribute('data-id');
+                    openDeleteConfirmModal(sectionId);
+                });
+            });
+        });
+
+        function saveSection(event) {
+            event.preventDefault();
+            const form = document.getElementById('sectionForm');
+            const formData = new FormData(form);
+            const isEditing = document.getElementById('id').value !== '';
+            const url = isEditing ? "{{ url_for('dashboard.edit_section') }}" : "{{ url_for('dashboard.add_section') }}";
+
+            fetch(url, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                showFlashMessage(data.message, data.status);
+                if (data.status === 'success') {
+                    document.getElementById('sectionModal').style.display = 'none';
+                    if (!isEditing) {
+                        addTableRow(data.section);
+                    } else {
+                        updateTableRow(data.section);
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Помилка:', error);
+                showFlashMessage('Сталася помилка при збереженні секції.', 'error');
+            });
+        }
+
+        function showFlashMessage(message, category) {
+            const flashMessages = document.getElementById('flash-messages');
+            const flashMessage = document.createElement('div');
+            flashMessage.className = `flash ${category}`;
+            flashMessage.innerText = message;
+            flashMessages.appendChild(flashMessage);
+
+            setTimeout(() => {
+                flashMessage.remove();
+            }, 5000);
+        }
+
+        function addTableRow(section) {
+            const tbody = document.querySelector('.table-container table tbody');
+            const tr = document.createElement('tr');
+
+            tr.innerHTML = `
+                <td>${section.id}</td>
+                <td>${section.name}</td>
+                <td>${section.floor}</td>
+                <td>${section.manager || ''}</td>
+                <td>${section.trading_point}</td>
+                <td style="display: flex; gap: 10px;">
+                    <a href="javascript:void(0);" onclick="openModal('Редагувати секцію', {
+                        id: '${section.id}',
+                        name: '${section.name}',
+                        floor: '${section.floor}',
+                        manager_id: '${section.manager_id || ''}',
+                        trading_point_id: '${section.trading_point_id}'
+                    });" class="btn-success">Редагувати</a>
+                    ${['owner', 'admin'].includes(userRole) ?
+                    `<button type="button" class="btn-danger" data-id="${section.id}">Видалити</button>` : ''}
+                </td>
+            `;
+
+            if (['owner', 'admin'].includes(userRole)) {
+                const deleteButton = tr.querySelector('.btn-danger');
+                if (deleteButton) {
+                    deleteButton.addEventListener('click', function () {
+                        const sectionId = this.getAttribute('data-id');
+                        openDeleteConfirmModal(sectionId);
+                    });
+                }
+            }
+
+            tbody.appendChild(tr);
+        }
+
+        function updateTableRow(section) {
+            const rows = document.querySelectorAll('.table-container table tbody tr');
+            rows.forEach(row => {
+                const idCell = row.querySelector('td:first-child');
+                if (idCell && idCell.textContent == section.id) {
+                    row.innerHTML = `
+                        <td>${section.id}</td>
+                        <td>${section.name}</td>
+                        <td>${section.floor}</td>
+                        <td>${section.manager || ''}</td>
+                        <td>${section.trading_point}</td>
+                        <td style="display: flex; gap: 10px;">
+                            <a href="javascript:void(0);" onclick="openModal('Редагувати секцію', {
+                                id: '${section.id}',
+                                name: '${section.name}',
+                                floor: '${section.floor}',
+                                manager_id: '${section.manager_id || ''}',
+                                trading_point_id: '${section.trading_point_id}'
+                            });" class="btn-success">Редагувати</a>
+                            ${['owner', 'admin'].includes(userRole) ?
+                            `<button type="button" class="btn-danger" data-id="${section.id}">Видалити</button>` : ''}
+                        </td>
+                    `;
+
+                    if (['owner', 'admin'].includes(userRole)) {
+                        const deleteButton = row.querySelector('.btn-danger');
+                        if (deleteButton) {
+                            deleteButton.addEventListener('click', function () {
+                                const sectionId = this.getAttribute('data-id');
+                                openDeleteConfirmModal(sectionId);
+                            });
+                        }
+                    }
+                }
+            });
+        }
+
+        function openDeleteConfirmModal(sectionId) {
+            const modal = document.getElementById('deleteConfirmModal');
+            modal.style.display = 'block';
+            document.getElementById('delete-section-id').value = sectionId;
+        }
+
+        function closeDeleteConfirmModal() {
+            const modal = document.getElementById('deleteConfirmModal');
+            modal.style.display = 'none';
+            document.getElementById('delete-section-id').value = '';
+        }
+
+        function confirmDeleteSection() {
+            const sectionId = document.getElementById('delete-section-id').value;
+            if (!sectionId) {
+                showFlashMessage('Не вказано ID секції для видалення.', 'error');
+                return;
+            }
+
+            fetch("{{ url_for('dashboard.delete_section') }}", {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: new URLSearchParams({
+                    'id': sectionId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                showFlashMessage(data.message, data.status);
+                if (data.status === 'success') {
+                    const rows = document.querySelectorAll('.table-container table tbody tr');
+                    rows.forEach(row => {
+                        const idCell = row.querySelector('td:first-child');
+                        if (idCell && idCell.textContent == sectionId) {
+                            row.remove();
+                        }
+                    });
+                    closeDeleteConfirmModal();
+                }
+            })
+            .catch(error => {
+                console.error('Помилка:', error);
+                showFlashMessage('Сталася помилка при видаленні секції.', 'error');
+                closeDeleteConfirmModal();
+            });
+        }
+    </script>
+{% endblock %}
+
+{% block content %}
+<h1>Список секцій</h1>
+
+{% if session.get('role') in ['owner', 'admin'] %}
+    <a href="javascript:void(0);" onclick="openModal('Додати секцію');" class="button">Додати нову секцію</a>
+{% endif %}
+
+<form method="GET" action="{{ url_for('dashboard.sections') }}" style="margin-top: 20px;">
+    <input type="text" name="search" placeholder="Пошук секцій" value="{{ request.args.get('search', '') }}">
+    <button type="submit">Пошук</button>
+</form>
+
+<div class="table-container">
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Назва</th>
+                <th>Поверх</th>
+                <th>Менеджер</th>
+                <th>Торгова точка</th>
+                {% if session.get('role') in ['owner', 'admin', 'operator'] %}
+                    <th>Дії</th>
+                {% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for sec in sections %}
+            <tr>
+                <td>{{ sec[0] }}</td>
+                <td>{{ sec[1] }}</td>
+                <td>{{ sec[2] }}</td>
+                <td>{{ sec[4] or '' }}</td>
+                <td>{{ sec[6] }}</td>
+
+                {% if session.get('role') in ['owner', 'admin', 'operator'] %}
+                <td style="display: flex; gap: 10px;">
+                    <a href="javascript:void(0);" onclick="openModal('Редагувати секцію', {
+                        id: '{{ sec[0] }}',
+                        name: '{{ sec[1] }}',
+                        floor: '{{ sec[2] }}',
+                        manager_id: '{{ sec[3] or '' }}',
+                        trading_point_id: '{{ sec[5] }}',
+                        trading_point: '{{ sec[6] }}'
+                    });" class="btn-success">Редагувати</a>
+
+                    {% if session.get('role') in ['owner', 'admin'] %}
+                    <button type="button" class="btn-danger" data-id="{{ sec[0] }}">Видалити</button>
+                    {% endif %}
+                </td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Контейнер для флеш-повідомлень -->
+<div id="flash-messages">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="flash {{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+</div>
+
+<!-- Модальне вікно для додавання/редагування секції -->
+<div id="sectionModal" class="modal">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2 id="modal-title">Додати секцію</h2>
+        <form id="sectionForm" class="admin-form">
+            <input type="hidden" id="id" name="id">
+            <div class="form-group">
+                <label for="name">Назва:</label>
+                <input type="text" id="name" name="name" required>
+            </div>
+            <div class="form-group">
+                <label for="floor">Поверх:</label>
+                <input type="number" id="floor" name="floor" required>
+            </div>
+            <div class="form-group">
+                <label for="manager_id">Менеджер:</label>
+                <select id="manager_id" name="manager_id">
+                    <option value="">Не обрано</option>
+                    {% for emp in employees %}
+                        <option value="{{ emp[0] }}">{{ emp[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="trading_point_id">Торгова точка:</label>
+                <select id="trading_point_id" name="trading_point_id" required>
+                    {% for tp in trading_points %}
+                        <option value="{{ tp[0] }}">{{ tp[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="button" onclick="saveSection(event)">Зберегти</button>
+        </form>
+    </div>
+</div>
+
+<!-- Модальне вікно для підтвердження видалення секції -->
+<div id="deleteConfirmModal" class="modal">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2>Підтвердження видалення</h2>
+        <p>Ви впевнені, що хочете видалити цю секцію?</p>
+        <form id="deleteForm" class="delete-form">
+            <input type="hidden" id="delete-section-id" name="id">
+            <div class="button-group">
+                <button type="button" class="btn-confirm" onclick="confirmDeleteSection()">Так, видалити</button>
+                <button type="button" class="btn-cancel" onclick="closeDeleteConfirmModal()">Скасувати</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

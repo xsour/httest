@@ -1,0 +1,383 @@
+{% extends 'dashboard_base.html' %}
+
+{% block title %}Торгові точки{% endblock %}
+
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tables.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/modals.css') }}">
+    <script>
+        // Передача ролі користувача до JavaScript
+        const userRole = "{{ session.get('role') }}";
+
+        // Функція для відкриття модального вікна
+        function openModal(title, tradingPoint = null) {
+            document.getElementById('modal-title').innerText = title;
+            const modal = document.getElementById('tradingPointModal');
+            modal.style.display = 'block';
+
+            if (tradingPoint) {
+                document.getElementById('id').value = tradingPoint.id;
+                document.getElementById('name').value = tradingPoint.name;
+                document.getElementById('type').value = tradingPoint.type;
+                document.getElementById('size').value = tradingPoint.size;
+                document.getElementById('rent_fee').value = tradingPoint.rent_fee;
+                document.getElementById('utility_costs').value = tradingPoint.utility_costs;
+                document.getElementById('counter_count').value = tradingPoint.counter_count;
+            } else {
+                document.getElementById('tradingPointForm').reset();
+                document.getElementById('id').value = ''; // Очистити поле ID
+            }
+        }
+
+        // Закриття модальних вікон при натисканні на кнопку "Закрити" або за межами модального вікна
+        document.addEventListener('DOMContentLoaded', function () {
+            // Закриття модального вікна для додавання/редагування
+            document.querySelectorAll('.close').forEach(element => {
+                element.onclick = function () {
+                    const modal = this.closest('.modal');
+                    if (modal) {
+                        modal.style.display = 'none';
+                    }
+                }
+            });
+
+            window.onclick = function (event) {
+                const modals = document.querySelectorAll('.modal');
+                modals.forEach(modal => {
+                    if (event.target == modal) {
+                        modal.style.display = 'none';
+                    }
+                });
+            }
+
+            // Додати слухачі подій для кнопок видалення
+            const deleteButtons = document.querySelectorAll('.btn-danger');
+            deleteButtons.forEach(button => {
+                button.addEventListener('click', function () {
+                    const pointId = this.getAttribute('data-id');
+                    openDeleteConfirmModal(pointId);
+                });
+            });
+        });
+
+        // Функція для збереження торгової точки через AJAX
+        function saveTradingPoint(event) {
+            event.preventDefault();
+            const form = document.getElementById('tradingPointForm');
+            const formData = new FormData(form);
+            const isEditing = document.getElementById('id').value !== '';
+            const url = isEditing ? "{{ url_for('dashboard.edit_trading_point') }}" : "{{ url_for('dashboard.add_trading_point') }}";
+
+            fetch(url, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest' // Додаємо заголовок для ідентифікації AJAX-запиту
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                showFlashMessage(data.message, data.status);
+                if (data.status === 'success') {
+                    document.getElementById('tradingPointModal').style.display = 'none';
+                    if (!isEditing) {
+                        addTableRow(data.trading_point);
+                    } else {
+                        updateTableRow(data.trading_point);
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Помилка:', error);
+                showFlashMessage('Сталася помилка при збереженні торгової точки.', 'error');
+            });
+        }
+
+        // Функція для відображення флеш-повідомлень
+        function showFlashMessage(message, category) {
+            const flashMessages = document.getElementById('flash-messages');
+            const flashMessage = document.createElement('div');
+            flashMessage.className = `flash ${category}`;
+            flashMessage.innerText = message;
+            flashMessages.appendChild(flashMessage);
+
+            // Автоматичне видалення повідомлення через 5 секунд
+            setTimeout(() => {
+                flashMessage.remove();
+            }, 5000);
+        }
+
+        // Функція для додавання нового рядка до таблиці
+        function addTableRow(point) {
+            const tbody = document.querySelector('.table-container table tbody');
+            const tr = document.createElement('tr');
+
+            tr.innerHTML = `
+                <td>${point.id}</td>
+                <td>${point.name}</td>
+                <td>${point.type}</td>
+                <td>${point.size}</td>
+                <td>${point.rent_fee}</td>
+                <td>${point.utility_costs}</td>
+                <td>${point.counter_count}</td>
+                <td style="display: flex; gap: 10px;">
+                    <a href="javascript:void(0);" onclick="openModal('Редагувати торгову точку', {
+                        id: '${point.id}',
+                        name: '${point.name}',
+                        type: '${point.type}',
+                        size: '${point.size}',
+                        rent_fee: '${point.rent_fee}',
+                        utility_costs: '${point.utility_costs}',
+                        counter_count: '${point.counter_count}'
+                    });" class="btn-success">Редагувати</a>
+                    ${['owner', 'admin'].includes(userRole) ? `
+                    <button type="button" class="btn-danger" data-id="${point.id}">Видалити</button>
+                    ` : ''}
+                </td>
+            `;
+
+            // Додати слухача подій для кнопки видалення
+            if (['owner', 'admin'].includes(userRole)) {
+                const deleteButton = tr.querySelector('.btn-danger');
+                if (deleteButton) {
+                    deleteButton.addEventListener('click', function () {
+                        const pointId = this.getAttribute('data-id');
+                        openDeleteConfirmModal(pointId);
+                    });
+                }
+            }
+
+            tbody.appendChild(tr);
+        }
+
+        // Функція для оновлення існуючого рядка таблиці
+        function updateTableRow(point) {
+            const rows = document.querySelectorAll('.table-container table tbody tr');
+            rows.forEach(row => {
+                const idCell = row.querySelector('td:first-child');
+                if (idCell && idCell.textContent == point.id) {
+                    row.innerHTML = `
+                        <td>${point.id}</td>
+                        <td>${point.name}</td>
+                        <td>${point.type}</td>
+                        <td>${point.size}</td>
+                        <td>${point.rent_fee}</td>
+                        <td>${point.utility_costs}</td>
+                        <td>${point.counter_count}</td>
+                        <td style="display: flex; gap: 10px;">
+                            <a href="javascript:void(0);" onclick="openModal('Редагувати торгову точку', {
+                                id: '${point.id}',
+                                name: '${point.name}',
+                                type: '${point.type}',
+                                size: '${point.size}',
+                                rent_fee: '${point.rent_fee}',
+                                utility_costs: '${point.utility_costs}',
+                                counter_count: '${point.counter_count}'
+                            });" class="btn-success">Редагувати</a>
+                            ${['owner', 'admin'].includes(userRole) ? `
+                            <button type="button" class="btn-danger" data-id="${point.id}">Видалити</button>
+                            ` : ''}
+                        </td>
+                    `;
+
+                    // Додати слухача подій для кнопки видалення
+                    if (['owner', 'admin'].includes(userRole)) {
+                        const deleteButton = row.querySelector('.btn-danger');
+                        if (deleteButton) {
+                            deleteButton.addEventListener('click', function () {
+                                const pointId = this.getAttribute('data-id');
+                                openDeleteConfirmModal(pointId);
+                            });
+                        }
+                    }
+                }
+            });
+        }
+
+        // Функція для відкриття модального вікна підтвердження видалення
+        function openDeleteConfirmModal(pointId) {
+            const modal = document.getElementById('deleteConfirmModal');
+            modal.style.display = 'block';
+            document.getElementById('delete-point-id').value = pointId;
+        }
+
+        // Функція для закриття модального вікна підтвердження видалення
+        function closeDeleteConfirmModal() {
+            const modal = document.getElementById('deleteConfirmModal');
+            modal.style.display = 'none';
+            document.getElementById('delete-point-id').value = '';
+        }
+
+        // Функція для підтвердження видалення торгової точки через AJAX
+        function confirmDeleteTradingPoint() {
+            const pointId = document.getElementById('delete-point-id').value;
+            if (!pointId) {
+                showFlashMessage('Не вказано ID торгової точки для видалення.', 'error');
+                return;
+            }
+
+            fetch("{{ url_for('dashboard.delete_trading_point') }}", {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: new URLSearchParams({
+                    'id': pointId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                showFlashMessage(data.message, data.status);
+                if (data.status === 'success') {
+                    // Видалення рядка таблиці
+                    const rows = document.querySelectorAll('.table-container table tbody tr');
+                    rows.forEach(row => {
+                        const idCell = row.querySelector('td:first-child');
+                        if (idCell && idCell.textContent == pointId) {
+                            row.remove();
+                        }
+                    });
+                    closeDeleteConfirmModal();
+                }
+            })
+            .catch(error => {
+                console.error('Помилка:', error);
+                showFlashMessage('Сталася помилка при видаленні торгової точки.', 'error');
+                closeDeleteConfirmModal();
+            });
+        }
+    </script>
+{% endblock %}
+
+{% block content %}
+<h1>Список торгових точок</h1>
+
+{% if session.get('role') in ['owner', 'admin'] %}
+    <a href="javascript:void(0);" onclick="openModal('Додати торгову точку');" class="button">Додати нову торгову точку</a>
+{% endif %}
+
+<form method="GET" action="{{ url_for('dashboard.trading_points') }}" style="margin-top: 20px;">
+    <input type="text" name="search" placeholder="Пошук торгових точок" value="{{ request.args.get('search', '') }}">
+    <button type="submit">Пошук</button>
+</form>
+
+<div class="table-container">
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Назва</th>
+                <th>Тип</th>
+                <th>Розмір (м²)</th>
+                <th>Орендна плата (грн)</th>
+                <th>Комунальні витрати (грн)</th>
+                <th>Кількість лічильників</th>
+                {% if session.get('role') in ['owner', 'admin', 'operator'] %}
+                    <th>Дії</th>
+                {% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for point in trading_points %}
+            <tr>
+                <td>{{ point[0] }}</td>
+                <td>{{ point[1] }}</td>
+                <td>{{ point[2] }}</td>
+                <td>{{ point[3] }}</td>
+                <td>{{ point[4] }}</td>
+                <td>{{ point[5] }}</td>
+                <td>{{ point[6] }}</td>
+
+                {% if session.get('role') in ['owner', 'admin', 'operator'] %}
+                <td style="display: flex; gap: 10px;">
+                    <a href="javascript:void(0);" onclick="openModal('Редагувати торгову точку', {
+                        id: '{{ point[0] }}',
+                        name: '{{ point[1] }}',
+                        type: '{{ point[2] }}',
+                        size: '{{ point[3] }}',
+                        rent_fee: '{{ point[4] }}',
+                        utility_costs: '{{ point[5] }}',
+                        counter_count: '{{ point[6] }}'
+                    });" class="btn-success">Редагувати</a>
+
+                    {% if session.get('role') in ['owner', 'admin'] %}
+                    <button type="button" class="btn-danger" data-id="{{ point[0] }}">Видалити</button>
+                    {% endif %}
+                </td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Контейнер для флеш-повідомлень -->
+<div id="flash-messages">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="flash {{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+</div>
+
+
+<!-- Модальне вікно для додавання/редагування торгової точки -->
+<div id="tradingPointModal" class="modal">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2 id="modal-title">Додати торгову точку</h2>
+        <form id="tradingPointForm" class="admin-form">
+            <input type="hidden" id="id" name="id">
+            <div class="form-group">
+                <label for="name">Назва:</label>
+                <input type="text" id="name" name="name" required>
+            </div>
+            <div class="form-group">
+                <label for="type">Тип:</label>
+                <select id="type" name="type" required>
+                    <option value="Універмаг">Універмаг</option>
+                    <option value="Магазин">Магазин</option>
+                    <option value="Кіоск">Кіоск</option>
+                    <option value="Лоток">Лоток</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="size">Розмір (м²):</label>
+                <input type="number" id="size" name="size" step="0.01" required>
+            </div>
+            <div class="form-group">
+                <label for="rent_fee">Орендна плата (грн):</label>
+                <input type="number" id="rent_fee" name="rent_fee" step="0.01" required>
+            </div>
+            <div class="form-group">
+                <label for="utility_costs">Комунальні витрати (грн):</label>
+                <input type="number" id="utility_costs" name="utility_costs" step="0.01">
+            </div>
+            <div class="form-group">
+                <label for="counter_count">Кількість лічильників:</label>
+                <input type="number" id="counter_count" name="counter_count">
+            </div>
+            <button type="button" onclick="saveTradingPoint(event)">Зберегти</button>
+        </form>
+    </div>
+</div>
+
+<!-- Модальне вікно для підтвердження видалення торгової точки -->
+<div id="deleteConfirmModal" class="modal">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2>Підтвердження видалення</h2>
+        <p>Ви впевнені, що хочете видалити цю торгову точку?</p>
+        <form id="deleteForm" class="delete-form">
+            <input type="hidden" id="delete-point-id" name="id">
+            <div class="button-group">
+                <button type="button" class="btn-confirm" onclick="confirmDeleteTradingPoint()">Так, видалити</button>
+                <button type="button" class="btn-cancel" onclick="closeDeleteConfirmModal()">Скасувати</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
