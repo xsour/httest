@@ -1,7 +1,7 @@
 ﻿Flask==3.0.3
-Flask-MySQLdb==2.0.0
-Jinja2==3.1.4
+Flask-MySQLdb==1.0.1
 mysqlclient==2.1.1
+Jinja2==3.1.4
 requests==2.32.3
 Werkzeug==3.0.4
 gunicorn
